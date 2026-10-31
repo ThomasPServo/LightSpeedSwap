@@ -1,0 +1,2 @@
+pymobiledevice3==11.49.1
+cryptography==50.0.2

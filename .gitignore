@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.carrier-cache/
+.carrier-runtime/
+.carrier-tools/
+.carrier-state/
+*.ipcc
+carrier-diagnostic*.json
+*.dmg
+*.aea
+*.ipsw
+*.log
