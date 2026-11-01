@@ -22,7 +22,7 @@ import zipfile
 from dataclasses import dataclass, field
 
 ROOT = Path(__file__).resolve().parent
-RELEASE = "LightSpeedSwap 0.6.1"
+RELEASE = "LightSpeedSwap 0.6.2"
 TARGETS = {"mvno": "com.apple.TMobile_MVNO_US",
            "wholesale": "com.apple.TMobile_Wholesale_US"}
 IMSI_KEY = "InternationalMobileSubscriberIdentity"
@@ -398,15 +398,6 @@ def parser():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--version', action='version', version=RELEASE)
     sub = p.add_subparsers(dest="command", required=True)
-    radio = sub.add_parser("dashboard", help="Read-only radio dashboard; experimental USB measurements and saved captures")
-    radio.add_argument("--udid")
-    radio.add_argument("--port", type=int, default=8765)
-    radio.add_argument("--share", action="store_true", help="Allow access from the same trusted LAN using a temporary access key")
-    radio.add_argument("--no-open", action="store_true")
-    radio.add_argument("--offline", action="store_true", help="Open without automatically accessing a phone")
-    inputs = radio.add_mutually_exclusive_group()
-    inputs.add_argument("--import", dest="import_path", type=Path, help="Saved JSON/JSONL, log-bb tar, or macOS .logarchive")
-    inputs.add_argument("--demo", action="store_true", help="Explicitly display synthetic example readings")
     sub.add_parser("doctor", help="Offline dependency and signed-fixture checks")
     cache = sub.add_parser("cache", help="Offline cache size/contents or clear the downloaded bundle cache")
     cache.add_argument("action", choices=("info", "clear"), default="info", nargs="?")
@@ -507,9 +498,6 @@ async def run_phone(args):
 def main():
     args = parser().parse_args()
     logging.disable(logging.CRITICAL)
-    if args.command == "dashboard":
-        from carrier_radio_dashboard import run
-        return run(args)
     if args.command == "cache":
         import carrier_store
         from carrier_payloads import cache_path

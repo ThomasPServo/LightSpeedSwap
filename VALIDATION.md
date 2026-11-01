@@ -1,45 +1,11 @@
-# Validation for 0.6.1
+# Validation for 0.6.2
 
-The 0.5.0 baseline had **104 offline tests passing on Linux with Python 3.11,
-3.12, 3.13, and 3.14**. The 0.6.0 suite adds 25 radio contracts (129 total).
-**All 129 passed locally with Python 3.12.**
-The single-file CLI was built, bootstrapped into a clean private runtime, and
-used for `doctor` and cache inspection. No physical phone was connected here.
-GitHub Actions also runs the source suite on macOS, Windows, and Linux; its
-actual run status, not this document, determines whether those jobs passed.
-
-## Radio reader validation
-
-0.6.1 adds four regression tests for mode-only streams, missing/redacted TX
-values followed by RX, diagnostic counters/reset/privacy, and measurement aging.
-All **133 tests passed locally with Python 3.12**. Desktop and phone browser
-checks confirmed the mode-only state, separate counters, and redacted-TX/visible-RX
-display without overflow or browser errors.
-The prior `observations_seen` field includes mode events and remains for format
-compatibility; `measurements_seen` explicitly counts only QoS/cell events.
-No QoS/band success is inferred from a stream with mode events alone.
-
-- Actual 24B119 CommCenter and extracted CoreTelephony were analyzed in Ghidra
-  12.2, including request permissions, the QoS conversion and APN-redaction
-  callback. See [addresses, hashes, decoder limits and reproduction](research/24B119-radio.md).
-- Python radio tests cover nested QoS parsing, QCI/QFI separation, same-SIM mode
-  evidence, timestamps, stale/neighbor cells, identifier exclusion, bounded
-  retention/imports and token-protected HTTP access.
-- Nine Swift projection tests cover direct-read normalization, NSA/SA ambiguity,
-  SIM changes, historical imports, denied requests, invalid/Boolean measurements,
-  duplicate identities and local collector links.
-- The native prototype built for iPhone simulator and unsigned iPhone device in
-  [CI run 41258583246](https://github.com/ThomasPServo/LightSpeedSwap/actions/runs/41258583246).
-  Later commits use the same workflow; check their run result for final validation.
-- The browser dashboard was exercised at 1280×1000 and 390×844 using explicit
-  synthetic data. Both displayed n41/n71 and TX/RX class values, with no browser
-  errors or horizontal overflow. These screenshots are not phone measurements.
-
-No phone was connected to the development environment for this work. Neither
-native nor paired-USB QoS/serving-band measurements were physically verified.
-Firmware analysis establishes a
-candidate access route, not successful runtime access on all models or builds.
-The read-only path does not change the existing carrier-switch safeguards.
+The repository and universal CLI contain the carrier-switching functionality,
+its firmware preparation and signature checks, SIM hygiene, and related diagnostics.
+The separate radio dashboard, native reader, and radio research have been removed.
+The carrier-switching suite contains 104 offline tests. No physical phone was
+connected during this cleanup. GitHub Actions runs the suite on macOS, Windows,
+and Linux; its run status determines which configurations passed.
 
 ## Actual firmware coverage
 
