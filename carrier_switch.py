@@ -22,7 +22,7 @@ import zipfile
 from dataclasses import dataclass, field
 
 ROOT = Path(__file__).resolve().parent
-RELEASE = "LightSpeedSwap 0.7.2"
+RELEASE = "LightSpeedSwap 0.7.3"
 TARGETS = {"mvno": "com.apple.TMobile_MVNO_US",
            "wholesale": "com.apple.TMobile_Wholesale_US"}
 IMSI_KEY = "InternationalMobileSubscriberIdentity"
@@ -402,7 +402,7 @@ def parser():
     sub = p.add_subparsers(dest="command", required=True)
     sub.add_parser("doctor", help="Offline dependency and signed-fixture checks")
     cache = sub.add_parser("cache", help="Offline cache size/contents or clear the downloaded bundle cache")
-    cache.add_argument("action", choices=("info", "clear"), default="info", nargs="?")
+    cache.add_argument("action", choices=("info", "clear", "clear-download"), default="info", nargs="?")
     for command in ("status", "switch", "prepare", "diagnose", "setup-device", "export-pack", "revert", "migrate-legacy", "update-carriers"):
         c = sub.add_parser(command)
         c.add_argument("--udid", help="Select one USB device; never printed or saved")
@@ -503,7 +503,11 @@ def main():
     if args.command == "cache":
         import carrier_store
         from carrier_payloads import cache_path
-        if args.action == "clear":
+        if args.action == "clear-download":
+            from carrier_remote import clear_download
+            clear_download(cache_path(ROOT).parent)
+            say("Unfinished firmware download cleared. Verified bundles and restoration receipts were kept.")
+        elif args.action == "clear":
             carrier_store.clear(cache_path(ROOT))
             say("Downloaded bundle cache cleared. Included payloads and the phone were not changed.")
         else:

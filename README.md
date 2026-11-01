@@ -149,13 +149,37 @@ across app updates. A crashed cache writer can leave a lock; close app processes
 before removing a stale lock reported by the app.
 
 **Temporary space is different from retained cache size.** An unfamiliar firmware
-still requires several GB of download and at least 25 GiB free temporary space;
-larger images require more. HTTP ranges stream only the selected IPSW member,
-using bounded reads and checking its complete ZIP CRC. This is not sparse
-extraction of individual files from an encrypted APFS image. After successful
-decryption and extraction, the large images are deleted. Windows/Linux never
-mount the image. On macOS, uncertain unmount cleanup preserves the backing image
-and reports its location.
+requires several GB of download; reserve about 25 GiB or more. The app checks the
+specific image's disk requirements and credits bytes already saved for resuming.
+HTTP ranges stream only the selected IPSW member using bounded reads, not the
+entire IPSW or sparse extraction from an encrypted APFS image.
+
+**Slow downloads can continue beyond 45 minutes in 0.7.3.** Each request retains a
+45-second socket inactivity timeout and up to three attempts for transient
+connection errors or temporary server failures. Invalid ranges, certificate
+failures, and non-Apple redirects are never bypassed. There is no total elapsed
+download cutoff while the transfer keeps making progress.
+
+If a connection fails or you interrupt `setup-device`, rerun that command to
+resume. One unfinished compressed filesystem member and its small public source
+receipt are kept under `.carrier-cache`, outside the 8 MiB verified-payload cap.
+Both stored and deflated ZIP members resume without fetching the saved prefix
+again. The saved bytes are reread/decompressed locally and the complete member
+CRC is checked before decryption or extraction; original Apple carrier signatures
+are still required before caching usable bundles. A changed URL, archive size,
+or member metadata restarts that one pending download. Corrupt saved data is
+rejected and discarded. To explicitly discard a pending download:
+
+```sh
+python3 LightSpeedSwap.pyz cache clear-download
+```
+
+This keeps verified bundles and restoration receipts. `cache clear` still clears
+only prepared bundles. After a successful download the large checkpoint is
+removed; after successful preparation the expanded images are removed as well.
+Windows/Linux never mount the image. On macOS, uncertain unmount cleanup
+preserves the backing image and reports its location. An older release that
+already deleted a failed download cannot recover that earlier progress.
 
 The optional firmware helpers are downloaded on demand into `.carrier-tools`
 under the state directory. They use about 83–109 MiB, depending on the host:
@@ -165,7 +189,7 @@ before use. Windows' 7-Zip installer is unpacked as an archive; it is never run
 as an installer or added to PATH. Only the two named carrier directories are
 extracted, then their original Apple signatures are checked again.
 
-Runtime/dependencies, helpers, and manually exported packs are outside the
+Runtime/dependencies, helpers, pending downloads, and manually exported packs are outside the
 payload cache cap. No helper binary or full firmware image is shipped in this
 repo or embedded in the CLI. An unfamiliar image container, unsupported APFS
 feature, or changed helper output stops preparation without writing to the phone.

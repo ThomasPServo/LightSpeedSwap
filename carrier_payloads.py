@@ -357,7 +357,6 @@ def setup_device(root, state, url=None, bundle_pack=None):
     tool = ensure_firmware_tools(root)
     parent = data_root(root) / '.carrier-cache'
     parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    ensure(shutil.disk_usage(parent).free >= 25 * 1024**3, 'Firmware preparation needs at least 25 GiB of free disk space.')
     work = Path(tempfile.mkdtemp(prefix='.firmware-', dir=parent))
     print('Preparing original files for ' + state.product + ' / iOS ' + state.version + ' / ' + state.build, flush=True)
     print('One-time firmware download: several GB. No backup, restore or phone write. Later switches use the small cached bundles.', flush=True)
@@ -367,7 +366,7 @@ def setup_device(root, state, url=None, bundle_pack=None):
             manifest_bytes = archive.manifest()
             image_name = validate_manifest(plistlib.loads(manifest_bytes), state)
             image = work / image_name
-            archive.download_image(image_name, image)
+            archive.download_image(image_name, image, resume_dir=parent)
         if image.suffix == '.aea':
             command([tool, 'fw', 'aea', image, '--output', image.parent])
             image = image.with_suffix('')

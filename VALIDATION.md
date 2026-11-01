@@ -1,3 +1,23 @@
+## 0.7.3 slow-download and resume regression coverage
+
+All 139 local offline tests passed on the development Linux/Python 3.12 host.
+The release workflow runs the full macOS/Windows/Linux compatibility matrix.
+
+Deterministic HTTP-range fixtures simulate more than 45 minutes of successful
+transfer, socket resets/timeouts, temporary server failures, and exhausted
+retries. Stored and deflated ZIP64 image members are interrupted, reopened with
+a fresh reader, and completed without HTTP requests for the saved prefix. Tests
+check complete SHA-256/CRC receipts, corrupted-checkpoint rejection/removal,
+changed-image replacement, writer/clear locking, and bounded range memory.
+
+A preparation pipeline test interrupts a real ZIP fixture, verifies that only
+the compressed checkpoint survives cleanup, then resumes through preparation
+and the actual signed-bundle cache checks. Successful preparation removes the
+checkpoint and expanded images. TLS failures and invalid range responses are
+not retried insecurely. No test accesses or writes to a phone. The Windows
+report on iPhone16,1 / 27.0.1 / 24A446 is a download failure report, not a successful
+extraction or activation result for that exact firmware.
+
 ## 0.7.2 HTTPS certificate regression coverage
 
 The download paths now add explicit certifi roots to Python's default/configured

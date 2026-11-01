@@ -3,6 +3,8 @@ import contextlib
 import io
 from pathlib import Path
 import plistlib
+import random
+import zipfile
 import tarfile
 import tempfile
 from types import SimpleNamespace
@@ -14,6 +16,8 @@ import carrier_store as s
 import carrier_switch as c
 from test_carrier_payloads import manifest
 from test_carrier_switch import state
+import carrier_remote as remote
+import test_carrier_remote
 
 
 class PreparationStorageContracts(unittest.TestCase):
@@ -56,7 +60,7 @@ class PreparationStorageContracts(unittest.TestCase):
                 pass
             def manifest(self):
                 return manifest_bytes
-            def download_image(self, name, path):
+            def download_image(self, name, path, resume_dir=None):
                 workdirs.append(path.parent)
                 path.write_bytes(b'encrypted fixture')
         def fake_command(args, **kwargs):
@@ -97,6 +101,52 @@ class PreparationStorageContracts(unittest.TestCase):
             self.assertEqual(len(dirs), 1)
             self.assertTrue((dirs[0] / 'example.dmg').exists())
             self.assertFalse(p.cache_path(tmp).exists())
+
+
+    def test_interrupted_setup_keeps_checkpoint_but_cleans_expanded_image_then_resumes(self):
+        st = state()
+        manifest_bytes = plistlib.dumps(manifest(st))
+        image_name = p.validate_manifest(plistlib.loads(manifest_bytes), st)
+        raw = io.BytesIO()
+        payload = random.Random(23).randbytes(240000)
+        with zipfile.ZipFile(raw, 'w', zipfile.ZIP_STORED) as archive:
+            archive.writestr('BuildManifest.plist', manifest_bytes)
+            archive.writestr(image_name, payload)
+        with zipfile.ZipFile(raw) as archive, archive.open(image_name):
+            start = raw.tell()
+            end = start + archive.getinfo(image_name).compress_size
+        server = test_carrier_remote.RangeDownloadContracts()
+        bundles = {target: c.load_files(target) for target in c.TARGETS}
+        def decrypt(args):
+            Path(args[3]).with_suffix('').write_bytes(b'decrypted fixture')
+        with tempfile.TemporaryDirectory() as tmp, server.serve(raw.getvalue()) as fetch, \
+             patch.object(remote, 'CHUNK', 16384), patch.object(remote.time, 'sleep'), \
+             patch.object(p, 'ensure_firmware_tools', return_value=Path('/fake/ipsw')), \
+             patch.object(p, 'command', side_effect=decrypt), \
+             patch.object(p, 'extract_files', return_value=bundles), \
+             patch.object(p.shutil, 'disk_usage', return_value=SimpleNamespace(free=30 * 1024**3)), \
+             contextlib.redirect_stdout(io.StringIO()):
+            serve = fetch.side_effect
+            def flaky(request, **kwargs):
+                first, last = map(int, request.get_header('Range')[6:].split('-'))
+                if start + 3 * 16384 <= first <= last < end and last - first < 16384:
+                    raise TimeoutError('fixture connection lost')
+                return serve(request, **kwargs)
+            fetch.side_effect = flaky
+            with self.assertRaises(remote.DownloadInterrupted):
+                p.setup_device(tmp, st, url='https://updates.cdn-apple.com/fixture.ipsw')
+            part, record = remote.download_paths(p.cache_path(tmp).parent)
+            self.assertGreater(part.stat().st_size, 0)
+            self.assertTrue(record.exists())
+            self.assertEqual(list(Path(tmp).rglob('.firmware-*')), [])
+            self.assertFalse(p.cache_path(tmp).exists())
+            fetch.side_effect = serve
+            p.setup_device(tmp, st, url='https://updates.cdn-apple.com/fixture.ipsw')
+            self.assertFalse(part.exists())
+            self.assertFalse(record.exists())
+            self.assertEqual(list(Path(tmp).rglob('.firmware-*')), [])
+            for target in c.TARGETS:
+                self.assertEqual(p.read_cached(tmp, st, target), bundles[target])
 
 
 if __name__ == '__main__':

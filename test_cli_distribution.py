@@ -24,7 +24,7 @@ class DistributionContracts(unittest.TestCase):
             path = Path(tmp) / 'LightSpeedSwap.pyz'
             first = build_cli.build(ROOT, path)
             self.assertEqual(build_cli.build(ROOT, path), first)
-            for argument, expected in [('--help', 'setup-device'), ('--version', 'LightSpeedSwap 0.7.2')]:
+            for argument, expected in [('--help', 'setup-device'), ('--version', 'LightSpeedSwap 0.7.3')]:
                 result = subprocess.run([sys.executable, str(path), argument], capture_output=True,
                                         text=True, timeout=30)
                 self.assertEqual(result.returncode, 0, result.stderr)
