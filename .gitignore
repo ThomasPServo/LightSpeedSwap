@@ -10,3 +10,8 @@ carrier-diagnostic*.json
 *.aea
 *.ipsw
 *.log
+ios/.build/
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/

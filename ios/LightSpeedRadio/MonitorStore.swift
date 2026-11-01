@@ -54,7 +54,7 @@ private final class LocalSessionDelegate: NSObject, URLSessionTaskDelegate {
                 guard let self, self.generation == current else { return }
                 self.reading = false
                 var raw = result
-                if dataServiceBefore == nil || dataServiceBefore != self.telephony.dataServiceIdentifier {
+                if dataServiceBefore != self.telephony.dataServiceIdentifier {
                     raw["stable_data_service"] = false
                 }
                 self.snapshot = ProbeProjection.make(raw)

@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 
 public struct Observation: Codable, Identifiable, Equatable {
     public var kind: String
@@ -123,7 +124,10 @@ public enum ProbeProjection {
     static func numeric(_ value: Any?, _ range: ClosedRange<Double>) -> Double? {
         guard let value, !(value is NSNull) else { return nil }
         let n: Double?
-        if let x = value as? NSNumber { n = x.doubleValue }
+        if let x = value as? NSNumber {
+            guard CFGetTypeID(x) != CFBooleanGetTypeID() else { return nil }
+            n = x.doubleValue
+        }
         else if let x = value as? String { n = Double(x) }
         else { n = nil }
         guard let n, n.isFinite, range.contains(n) else { return nil }
@@ -158,7 +162,7 @@ public enum ProbeProjection {
         let mode = integer(data["dataMode"], 0...100)
         let qosName: String = !stable || (sa && nsa) ? "QCI / 5QI" :
             sa ? "5QI" : nsa || mode == 14 ? "QCI" : "QCI / 5QI"
-        let networkMode: String? = !stable ? nil : sa && !nsa ? "NR" : nsa && !sa ? "NRNSA" : mode == 14 ? "LTE" : nil
+        let networkMode: String? = !stable || (sa && nsa) ? nil : sa ? "NR" : nsa ? "NRNSA" : mode == 14 ? "LTE" : nil
         for flow in (qos["flows"] as? [[String: Any]] ?? []).prefix(64) {
             let tx = integer((flow["txQos"] as? [String: Any])?["qci"], 1...255)
             let rx = integer((flow["rxQos"] as? [String: Any])?["qci"], 1...255)
@@ -199,6 +203,6 @@ public enum ProbeProjection {
         else { detail = "Read directly on this iPhone. The system may return cached measurements; full carrier aggregation is not guaranteed." }
         return RadioSnapshot(source: "on-device", status: state, detail: detail, generated_at: time,
                              observations: rows, capabilities: capabilities,
-                             coverage: "Private API compatibility is experimental. Stock iOS 27.2 access has not been verified on a physical device.")
+                             coverage: "Experimental on-device reader. Firmware analysis supports a QoS read path; serving-cell access requires a separate iOS permission. Physical-device access is not yet verified.")
     }
 }

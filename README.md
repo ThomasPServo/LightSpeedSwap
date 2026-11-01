@@ -8,6 +8,12 @@ once, and verifies the selected SIM afterward.
 **No backup, restore, OS downgrade, or Find My change.** `--skip-backup` remains
 accepted for compatibility; every command always skips backups.
 
+Version 0.6.0 also adds an experimental **radio dashboard** and
+[native iPhone reader](ios/README.md). The [Ghidra analysis of 24B119](research/24B119-radio.md)
+traces an on-device internet-QoS read path. Serving-cell reads have a separate
+SPI permission requirement; neither the native reader nor USB collection has
+been verified on a physical phone. Missing data stays unknown.
+
 ## Download and run
 
 Download [LightSpeedSwap.pyz](https://github.com/ThomasPServo/LightSpeedSwap/raw/refs/heads/main/dist/LightSpeedSwap.pyz).
@@ -38,6 +44,38 @@ when you explicitly want another installation.
 
 From source, use `python3 launcher.py setup` and `python3 launcher.py status`.
 The existing `bash Setup.command` and `bash Run.command ...` launchers also work.
+
+## Radio dashboard and iPhone app
+
+```sh
+python3 LightSpeedSwap.pyz dashboard
+python3 LightSpeedSwap.pyz dashboard --share
+python3 LightSpeedSwap.pyz dashboard --import Saved-Radio.json
+python3 LightSpeedSwap.pyz dashboard --demo
+```
+
+The default dashboard listens locally and reads current CommCenter log events
+from one already trusted USB iPhone. It needs the prepared runtime; `--demo`,
+`--offline`, and saved-file viewing work without setup or phone access. It does
+not collect a backup or install a carrier bundle. It shows QCI/5QI only when a
+QoS object contains the class, and bands only from explicit cell measurements.
+Logging may omit or redact these fields. Demo readings are always synthetic;
+saved reports are always historical.
+
+`--share` enables the same dashboard on the trusted local network using a
+temporary access key. It prints a phone link for Safari or the native app.
+Sharing is HTTP, so use a trusted network. The key is kept out of URL query
+strings, access logs and exports. Exports omit raw log messages and subscriber
+identifiers. Saved JSON/JSONL and extracted macOS `.logarchive` / log-bb captures
+can be imported; raw logarchive decoding requires macOS's `log` command.
+
+The [native app](ios/README.md) has **Read this iPhone**, foreground polling,
+per-SIM views, JSON export/import and an optional Mac connection. Build and sign
+it in Xcode, or personally sign the unsigned artifact from
+[Native iOS reader CI](https://github.com/ThomasPServo/LightSpeedSwap/actions/workflows/ios.yml).
+No private Apple entitlements are included. Its QoS access is experimental;
+stock-iOS connected-band access remains unresolved. The app never estimates
+priority from a carrier bundle, speed test, signal strength or flow ID.
 
 ## Exact firmware without a growing collection of files
 

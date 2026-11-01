@@ -1,10 +1,35 @@
-# Validation for 0.5.0
+# Validation for 0.6.0
 
-**104 offline tests passed on Linux with Python 3.11, 3.12, 3.13, and 3.14.**
+The 0.5.0 baseline had **104 offline tests passing on Linux with Python 3.11,
+3.12, 3.13, and 3.14**. The 0.6.0 suite adds 25 radio contracts (129 total).
+**All 129 passed locally with Python 3.12.**
 The single-file CLI was built, bootstrapped into a clean private runtime, and
 used for `doctor` and cache inspection. No physical phone was connected here.
 GitHub Actions also runs the source suite on macOS, Windows, and Linux; its
 actual run status, not this document, determines whether those jobs passed.
+
+## Radio reader validation
+
+- Actual 24B119 CommCenter and extracted CoreTelephony were analyzed in Ghidra
+  12.2, including request permissions, the QoS conversion and APN-redaction
+  callback. See [addresses, hashes, decoder limits and reproduction](research/24B119-radio.md).
+- Python radio tests cover nested QoS parsing, QCI/QFI separation, same-SIM mode
+  evidence, timestamps, stale/neighbor cells, identifier exclusion, bounded
+  retention/imports and token-protected HTTP access.
+- Nine Swift projection tests cover direct-read normalization, NSA/SA ambiguity,
+  SIM changes, historical imports, denied requests, invalid/Boolean measurements,
+  duplicate identities and local collector links.
+- The native prototype built for iPhone simulator and unsigned iPhone device in
+  [CI run 41258583246](https://github.com/ThomasPServo/LightSpeedSwap/actions/runs/41258583246).
+  Later commits use the same workflow; check their run result for final validation.
+- The browser dashboard was exercised at 1280×1000 and 390×844 using explicit
+  synthetic data. Both displayed n41/n71 and TX/RX class values, with no browser
+  errors or horizontal overflow. These screenshots are not phone measurements.
+
+No phone was connected for this work. Neither native QoS/serving-band access nor
+paired-USB visibility was physically verified. Firmware analysis establishes a
+candidate access route, not successful runtime access on all models or builds.
+The read-only path does not change the existing carrier-switch safeguards.
 
 ## Actual firmware coverage
 

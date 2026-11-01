@@ -18,6 +18,8 @@ def main(argv=None):
     if argv[0] in {'-h', '--help', '--version'}:
         return subprocess.call([sys.executable, '-s', str(root / 'carrier_switch.py'), *argv],
                                env=environment)
+    if argv[0] == 'dashboard' and any(v in argv for v in ('--offline', '--demo', '--import', '--help')):
+        return subprocess.call([sys.executable, '-s', str(root / 'carrier_switch.py'), *argv], env=environment)
     python = executable(data_root(root) / '.carrier-runtime' / 'env')
     if not python.is_file():
         print('Run the app with "setup" first to install its private Python runtime. '

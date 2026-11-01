@@ -92,7 +92,7 @@ struct RadioView: View {
                     .frame(maxWidth: .infinity).padding(.vertical, 7)
             }.buttonStyle(.borderedProminent).disabled(store.reading)
             Button { store.toggleAutomatic() } label: {
-                Image(systemName: store.autoRead ? "pause.fill" : "arrow.trianglehead.2.clockwise.rotate.90")
+                Image(systemName: store.autoRead ? "pause.fill" : "arrow.clockwise")
                     .frame(width: 32, height: 32)
             }.buttonStyle(.bordered).accessibilityLabel(store.autoRead ? "Stop automatic reads" : "Read every five seconds")
         }
@@ -133,7 +133,7 @@ struct RadioView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(flow.apn ?? "Unknown APN").font(.headline)
+                            Text(flow.apn == "--" ? "APN hidden by iOS" : flow.apn ?? "Unknown APN").font(.headline)
                             Text("SIM \(flow.slot) · \(flow.network_mode ?? "Mode unresolved")").font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer(); freshness(flow, now: now)
@@ -214,6 +214,7 @@ struct RadioView: View {
             List {
                 Section("Direct on-device reading") {
                     Text("Read this iPhone queries CoreTelephony on this phone. Use cellular data during the read. The private interfaces are experimental on iOS 27.2.")
+                    Text("The analyzed firmware exposes an internet-QoS request with public server access. Its SPI check hides the APN name. Serving-cell requests require SPI access, so a normally signed app may show QoS while bands remain unavailable.")
                     Text("A missing value means the measurement was not returned. Bands supported by a modem are never substituted for serving bands.")
                 }
                 Section("Interpreting QoS") {

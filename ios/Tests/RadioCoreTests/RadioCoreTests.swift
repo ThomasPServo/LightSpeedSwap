@@ -54,6 +54,24 @@ final class RadioCoreTests: XCTestCase {
         XCTAssertNil(s.observations.first?.rsrq)
         XCTAssertEqual(s.observations.first?.role, "Unknown")
     }
+    func testBooleanQoSFromChangedPrivateABIIsNotClassOne() {
+        var raw = report()
+        raw["cells"] = []
+        raw["qos"] = ["state":"returned", "flows":[["txQos":["qci":true], "rxQos":["qci":false]]]]
+        XCTAssertTrue(ProbeProjection.make(raw).observations.isEmpty)
+    }
+    func testConflictingModeAndDuplicateImportStayUnambiguous() throws {
+        var raw = report(sa:true, nsa:true)
+        raw["data"] = ["newRadioSaDataBearer":true, "newRadioNsaDataBearer":true, "dataMode":14]
+        var s = ProbeProjection.make(raw)
+        XCTAssertNil(s.observations.first?.network_mode)
+        var last = s.observations[0]
+        last.tx = 6
+        s.observations.append(last)
+        let decoded = try RadioSnapshot.decodeReport(JSONEncoder().encode(s))
+        XCTAssertEqual(decoded.observations.count, 2)
+        XCTAssertEqual(decoded.observations.first(where: { $0.kind == "qos" })?.tx, 6)
+    }
     func testCollectorEndpointKeepsAccessTokenOutOfRequestURL() throws {
         let token = String(repeating:"a", count:43)
         let endpoint = try CollectorEndpoint("http://192.168.1.7:8765/#token=\(token)")
