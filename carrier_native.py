@@ -216,8 +216,16 @@ def select_members(listing, names):
         roots[target].add(root)
         ensure(not record.get('Symbolic Link') and not record.get('Hard Link'),
                'APFS carrier links are not supported.')
-        ensure(record.get('Folder') in {'+', '-'}, 'APFS member has no supported file type.')
-        if record['Folder'] == '+':
+        # APFS exposes kpidPosixAttrib (Mode), not the Folder property that
+        # several other 7-Zip formats publish. Require an actual regular file
+        # or directory; never infer the type from its name or size.
+        mode = record.get('Mode', '')
+        ensure(re.fullmatch(r'[d-][rwxstST-]{9}', mode),
+               'APFS member has an unsupported POSIX mode: ' + repr(mode) + ' at ' + path)
+        is_directory = mode[0] == 'd'
+        ensure(record.get('Folder', '+' if is_directory else '-') == ('+' if is_directory else '-'),
+               'Inconsistent APFS file type.')
+        if is_directory:
             ensure(relative in {'', 'signatures'}, 'Unmodeled nested carrier directory.')
             continue
         ensure(relative and path not in selected, 'Duplicate or missing APFS carrier filename.')

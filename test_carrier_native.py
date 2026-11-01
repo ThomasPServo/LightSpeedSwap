@@ -22,7 +22,7 @@ BASE = 'iOS/System/Library/Carrier Bundles/iPhone/'
 
 def listing(bundles, prefix=BASE):
     return '\n\n'.join('Path = ' + prefix + payloads.NAMES[target] + '.bundle/' + name
-                         + '\nFolder = -\nSize = ' + str(len(data))
+                         + '\nMode = -rw-r--r--\nSize = ' + str(len(data))
                          for target, files in bundles.items() for name, data in files.items()) + '\n\n'
 
 
@@ -53,9 +53,13 @@ class NativeContracts(unittest.TestCase):
     def test_rejects_paths_links_duplicate_fields_and_oversized_members(self):
         text = listing(self.bundles)
         for value in (text.replace('iOS/', '../'), text.replace('iOS/', 'C:/'),
-                      text + text, text.replace('Folder = -', 'Folder = -\nSymbolic Link = /tmp/other', 1),
-                      text.replace('Folder = -', 'Folder = -\nHard Link = outside', 1),
-                      text.replace('Folder = -', 'Folder = -\nFolder = -', 1),
+                      text + text, text.replace('Mode = ', 'Symbolic Link = /tmp/other\nMode = ', 1),
+                      text.replace('Mode = ', 'Hard Link = outside\nMode = ', 1),
+                      text.replace('Mode = ', 'Mode = -rw-r--r--\nMode = ', 1),
+                      text.replace('Mode = -', 'Mode = l', 1),
+                      text.replace('Mode = -', 'Mode = b', 1),
+                      text.replace('Mode = -rw-r--r--', 'Folder = -', 1),
+                      text.replace('Mode = ', 'Folder = +\nMode = ', 1),
                       text.replace('Size = ', 'Size = 99999999', 1)):
             with self.subTest(value=value[:60]), self.assertRaises(ValueError):
                 native.select_members(value, payloads.NAMES)
