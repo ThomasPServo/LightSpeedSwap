@@ -1,0 +1,72 @@
+name: Native Windows and Linux firmware
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, codex/native-firmware-extraction]
+    paths: ['.github/native-firmware-request.json']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-firmware-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025, ubuntu-24.04-arm, windows-11-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Install signature verifier
+        run: python -m pip install '--only-binary=:all:' cryptography==50.0.2
+      - name: Prepare temporary space on the disposable runner
+        env:
+          RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: python .github/scripts/prepare_runner_space.py
+      - name: Download, decrypt, and extract actual Apple firmware natively
+        run: python build_carrier_pack.py --request .github/native-firmware-request.json --output-dir "$CARRIER_PREP_TEMP/lightspeed-carrier-pack"
+      - name: Compare the generated original files with the known firmware baseline
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from types import SimpleNamespace
+          import carrier_payloads as p
+          import carrier_store as s
+          directory = Path(os.environ['CARRIER_PREP_TEMP']) / 'lightspeed-carrier-pack'
+          report = json.loads((directory / 'provenance.json').read_text())
+          state = SimpleNamespace(**report['device'])
+          key = s.entry_key(p.identity(state))
+          entries, objects = s.read(directory / report['pack']['file'])
+          _, actual = p.validate_entry(state, entries[key], objects)
+          included, included_objects = p.load_bundled(Path.cwd())
+          if key in included:
+              _, expected = p.validate_entry(state, included[key], included_objects)
+              assert actual == expected, 'Native extraction changed the original signed bytes'
+              print('Both original carrier bundles match the independently prepared baseline byte for byte.')
+          else:
+              print('Original signatures and exact firmware verified; this identity has no included comparison baseline.')
+          print(json.dumps({'host': report['host'], 'pack': report['pack'], 'image': report['filesystem_download']}, indent=2))
+          PY
+      - name: Upload only the verified carrier pack and receipts
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: native-carrier-pack-${{ matrix.os }}
+          path: ${{ env.CARRIER_PREP_TEMP }}/lightspeed-carrier-pack/*
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

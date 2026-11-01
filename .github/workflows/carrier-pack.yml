@@ -4,6 +4,12 @@ run-name: Carrier pack · ${{ inputs.product || 'repository request' }} · ${{ i
 on:
   workflow_dispatch:
     inputs:
+      host:
+        description: 'Operating system used to prepare the pack'
+        required: true
+        type: choice
+        default: macos-26
+        options: [macos-26, ubuntu-24.04, windows-2025, ubuntu-24.04-arm, windows-11-arm]
       product:
         description: 'Exact product from status (for example iPhone19,2)'
         required: true
@@ -37,8 +43,11 @@ concurrency:
 
 jobs:
   prepare:
-    runs-on: macos-26
+    runs-on: ${{ inputs.host || 'macos-26' }}
     timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -63,17 +72,17 @@ jobs:
             request=(--request .github/carrier-pack-request.json)
           fi
           python build_carrier_pack.py "${request[@]}" --validate-only > "$RUNNER_TEMP/carrier-request.json"
-      - name: Reclaim unused Xcode space on the disposable runner
+      - name: Prepare temporary space on the disposable runner
         env:
           RUNNER_ENVIRONMENT: ${{ runner.environment }}
-        run: python .github/scripts/reclaim_macos_runner_space.py
+        run: python .github/scripts/prepare_runner_space.py
       - name: Fetch exact Apple firmware and verify both carrier bundles
-        run: python build_carrier_pack.py --request "$RUNNER_TEMP/carrier-request.json" --output-dir "$RUNNER_TEMP/lightspeed-carrier-pack"
+        run: python build_carrier_pack.py --request "$RUNNER_TEMP/carrier-request.json" --output-dir "$CARRIER_PREP_TEMP/lightspeed-carrier-pack"
       - name: Upload only the small verified pack and receipts
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: LightSpeedSwap-carrier-pack-${{ github.run_id }}
-          path: ${{ runner.temp }}/lightspeed-carrier-pack/*
+          path: ${{ env.CARRIER_PREP_TEMP }}/lightspeed-carrier-pack/*
           if-no-files-found: error
           retention-days: 14
           compression-level: 0

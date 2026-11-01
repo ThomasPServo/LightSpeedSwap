@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare a public, exact-firmware carrier pair on a Mac or Actions runner.
+"""Prepare a public, exact-firmware carrier pair on macOS, Windows, or Linux.
 
 No phone connection, SIM identifiers, install, restore, or backup is involved.
 Large images are temporary; only a validated carrier pack and receipts leave
@@ -56,7 +56,7 @@ def read_request(path):
 def build_pack(request, output):
     request = request_identity(request)
     state = SimpleNamespace(**{k: request[k] for k in ('product', 'hardware', 'version', 'build')})
-    payloads.ensure(platform.system() == 'Darwin', 'Firmware extraction requires macOS.')
+    payloads.ensure(platform.system() in {'Darwin', 'Windows', 'Linux'}, 'Unsupported firmware preparation host.')
     output = Path(output).expanduser().absolute()
     payloads.ensure(not output.exists() and not output.is_symlink(), 'Output directory already exists; it will not be overwritten.')
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -71,7 +71,7 @@ def build_pack(request, output):
         url = request.get('firmware_url') or payloads.firmware_url(state)
         url = request_identity({**request, 'firmware_url': url})['firmware_url']
         print('Preparing ' + state.product + ' / ' + state.hardware + ' / iOS ' + state.version + ' / ' + state.build, flush=True)
-        tool = payloads.ensure_ipsw(work)
+        tool = payloads.ensure_firmware_tools(work)
         with RemoteFirmware(url) as archive:
             manifest_bytes = archive.manifest()
             image_name = payloads.validate_manifest(plistlib.loads(manifest_bytes), state)
@@ -83,7 +83,7 @@ def build_pack(request, output):
             image = encrypted.with_suffix('')
             payloads.ensure(image.is_file(), 'Decrypted firmware image was not produced.')
             encrypted.unlink()
-        bundles = payloads.extract_macos(image, work)
+        bundles = payloads.extract_files(image, work, work)
         payloads.save_payload(work, state, manifest_bytes, url, bundles)
         prepared = work / 'artifact'
         prepared.mkdir()
@@ -95,6 +95,8 @@ def build_pack(request, output):
         payloads.validate_entry(state, entry, objects)
         report = {
             'schema': 'lightspeedswap.carrier-pack-build.v1',
+            'host': {'system': platform.system(), 'architecture': platform.machine(),
+                     'extractor': 'hdiutil' if platform.system() == 'Darwin' else '7-Zip 26.05'},
             'device': payloads.identity(state),
             'source_url': url,
             'filesystem_image': image_name,

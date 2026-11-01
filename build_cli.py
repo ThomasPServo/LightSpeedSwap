@@ -7,7 +7,7 @@ from pathlib import Path
 import zipfile
 
 RUNTIME_FILES = ('launcher.py', 'setup_env.py', 'carrier_paths.py', 'carrier_switch.py',
-                 'carrier_payloads.py', 'carrier_remote.py', 'carrier_store.py', 'carrier_signature_audit.py',
+                 'carrier_payloads.py', 'carrier_remote.py', 'carrier_native.py', 'carrier_store.py', 'carrier_signature_audit.py',
                  'carrier_diagnostics.py', 'carrier_hygiene.py', 'cf_string_contract.py', 'requirements.txt',
                  'bundled.carrierpack')
 

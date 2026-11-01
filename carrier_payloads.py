@@ -1,7 +1,7 @@
 """Import each phone's original carrier files from its exact Apple firmware.
 
 Host-only operations. No device service, restore, backup, or installation.
-Automatic image extraction currently requires macOS and its read-only APFS mount.
+macOS uses a read-only APFS mount; Windows/Linux use a pinned native APFS reader.
 """
 import io
 import json
@@ -253,6 +253,9 @@ def firmware_url(state):
 
 
 def ensure_ipsw(root):
+    if platform.system() in {'Windows', 'Linux'}:
+        from carrier_native import prepare_tool
+        return prepare_tool(root, get_bytes, 'ipsw')
     ensure(platform.system() == 'Darwin', "Automatic firmware import currently requires macOS.")
     arch = platform.machine()
     ensure(arch in IPSW_DIGESTS, "Unsupported Mac architecture.")
@@ -280,6 +283,14 @@ def ensure_ipsw(root):
         binary.chmod(0o700)
     # The archive existed only in memory; retain just the verified executable.
     return binary
+
+
+def ensure_firmware_tools(root):
+    tool = ensure_ipsw(root)
+    if platform.system() != 'Darwin':
+        from carrier_native import prepare_tool
+        prepare_tool(root, get_bytes, '7zip')
+    return tool
 
 
 def command(args, timeout=2700, capture=False):
@@ -317,6 +328,16 @@ def extract_macos(image, work):
         marker.unlink()
 
 
+def extract_files(image, work, root):
+    if platform.system() == 'Darwin':
+        return extract_macos(image, work)
+    from carrier_native import extract, prepare_tool
+    bundles = extract(image, work, prepare_tool(root, get_bytes, '7zip'), NAMES)
+    for target, files in bundles.items():
+        validate_files(target, files)
+    return bundles
+
+
 def setup_device(root, state, url=None, bundle_pack=None):
     identity(state)
     if bundle_pack is not None:
@@ -331,9 +352,8 @@ def setup_device(root, state, url=None, bundle_pack=None):
     else:
         print('Signed payloads for this exact model/build are already cached. Ready to switch.', flush=True)
         return
-    ensure(platform.system() == 'Darwin', 'Run setup-device on a Mac to import the exact firmware payloads.')
     url = apple_url(url) if url else firmware_url(state)
-    tool = ensure_ipsw(root)
+    tool = ensure_firmware_tools(root)
     parent = data_root(root) / '.carrier-cache'
     parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     ensure(shutil.disk_usage(parent).free >= 25 * 1024**3, 'Firmware preparation needs at least 25 GiB of free disk space.')
@@ -352,7 +372,7 @@ def setup_device(root, state, url=None, bundle_pack=None):
             image = image.with_suffix('')
             ensure(image.is_file(), 'Decrypted firmware image was not produced.')
             image.with_suffix(image.suffix + '.aea').unlink()
-        bundles = extract_macos(image, work)
+        bundles = extract_files(image, work, root)
         destination = save_payload(root, state, manifest_bytes, url, bundles)
         print('Verified both original Apple-signed bundles and cached them in one compressed store. Ready to switch.', flush=True)
         return destination
