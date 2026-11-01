@@ -24,7 +24,10 @@ def certificate(name, key, issuer=None, issuer_key=None, *, ca=False):
                .issuer_name(issuer.subject if issuer else subject)
                .public_key(key.public_key()).serial_number(x509.random_serial_number())
                .not_valid_before(now - timedelta(days=1)).not_valid_after(now + timedelta(days=1))
-               .add_extension(x509.BasicConstraints(ca=ca, path_length=None), critical=True))
+               .add_extension(x509.BasicConstraints(ca=ca, path_length=None), critical=True)
+               .add_extension(x509.SubjectKeyIdentifier.from_public_key(key.public_key()), critical=False)
+               .add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(
+                   (issuer_key or key).public_key()), critical=False))
     if ca:
         builder = builder.add_extension(x509.KeyUsage(True, False, False, False, False,
                                                       True, True, False, False), critical=True)
@@ -66,6 +69,9 @@ class HTTPSContracts(unittest.TestCase):
     def handshake(self, client_context, server_context, hostname='localhost'):
         incoming, outgoing = ssl.MemoryBIO(), ssl.MemoryBIO()
         server_in, server_out = ssl.MemoryBIO(), ssl.MemoryBIO()
+        # Python 3.13+ enables strict X.509 validation by default. Exercise it
+        # on older test interpreters too; fixtures must meet the same rules.
+        client_context.verify_flags |= ssl.VERIFY_X509_STRICT
         client = client_context.wrap_bio(incoming, outgoing, server_hostname=hostname)
         server = server_context.wrap_bio(server_in, server_out, server_side=True)
         complete = [False, False]
