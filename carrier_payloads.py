@@ -256,7 +256,7 @@ def ensure_ipsw(root):
     if platform.system() in {'Windows', 'Linux'}:
         from carrier_native import prepare_tool
         return prepare_tool(root, get_bytes, 'ipsw')
-    ensure(platform.system() == 'Darwin', "Automatic firmware import currently requires macOS.")
+    ensure(platform.system() == 'Darwin', "Automatic firmware import requires macOS, Windows, or Linux.")
     arch = platform.machine()
     ensure(arch in IPSW_DIGESTS, "Unsupported Mac architecture.")
     folder = data_root(root) / '.carrier-tools' / (IPSW_VERSION + '-' + arch)

@@ -148,7 +148,7 @@ def prepare_tool(root, fetch, kind):
     data = fetch(base + asset, 64 * 1024 * 1024)
     ensure(store.digest(data) == archive_sha, 'Native helper archive checksum mismatch.')
     if kind == '7zip' and system == 'Windows':
-        # Read the signed/pinned installer as a 7z archive. Never execute the
+        # Read the pinned installer as a 7z archive. Never execute the
         # installer, register shell extensions, alter PATH, or ask for admin.
         with tempfile.TemporaryDirectory(prefix='.unpack-', dir=folder) as temporary:
             work = Path(temporary)

@@ -3,7 +3,7 @@ name: Native Windows and Linux firmware
 on:
   workflow_dispatch:
   push:
-    branches: [main, codex/native-firmware-extraction]
+    branches: [main, codex/native-firmware-extraction, codex/windows-arm-extraction]
     paths: ['.github/native-firmware-request.json']
 
 permissions:
@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-2025, ubuntu-24.04-arm, windows-11-arm]
+        os: ${{ github.ref_name == 'codex/windows-arm-extraction' && fromJSON('["windows-11-arm"]') || fromJSON('["ubuntu-24.04", "windows-2025", "ubuntu-24.04-arm", "windows-11-arm"]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     defaults:
@@ -32,7 +32,18 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install signature verifier
+        if: matrix.os != 'windows-11-arm'
         run: python -m pip install '--only-binary=:all:' cryptography==50.0.2
+      - name: Bootstrap x64 runtime from native Windows ARM Python
+        if: matrix.os == 'windows-11-arm'
+        run: |
+          python setup_env.py --managed-python
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          with open(os.environ['GITHUB_PATH'], 'a', encoding='utf-8') as output:
+              output.write(str(Path.cwd() / '.carrier-runtime' / 'env' / 'Scripts') + '\n')
+          PY
       - name: Prepare temporary space on the disposable runner
         env:
           RUNNER_ENVIRONMENT: ${{ runner.environment }}

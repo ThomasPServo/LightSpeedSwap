@@ -15,8 +15,9 @@ from carrier_paths import data_root
 UV_VERSION = "0.13.6"
 MARKER = "carrier-selector-local-runtime-v1\n"
 PROBE = (
-    "import sys,ssl; "
+    "import sys,ssl,sysconfig; "
     "sys.exit(0 if (3,11)<=sys.version_info[:2] "
+    "and (sys.platform!='win32' or sysconfig.get_platform()=='win-amd64') "
     "and ssl.OPENSSL_VERSION.startswith('OpenSSL ') "
     "and ssl.OPENSSL_VERSION_INFO[:3]>=(1,1,1) else 1)"
 )
@@ -66,7 +67,11 @@ def select_python(runtime, root, env, *, managed_only=False):
         if compatible(candidate, env):
             return Path(candidate)
 
-    print("Preparing a private managed Python 3.12...", flush=True)
+    # The pinned cryptography release has Windows x64 wheels, but no ARM64
+    # wheels. Windows on ARM can run x64 Python; avoid an accidental Rust build
+    # or an older cryptography version when bootstrapped by native ARM Python.
+    request = "cpython-3.12-windows-x86_64" if sys.platform == "win32" else "3.12"
+    print("Preparing a private managed Python " + request + "...", flush=True)
     bootstrap = runtime / "bootstrap"
     bootstrap_python = executable(bootstrap)
     if not bootstrap_python.exists():
@@ -75,11 +80,11 @@ def select_python(runtime, root, env, *, managed_only=False):
          "--index-url", "https://pypi.org/simple", "uv==" + UV_VERSION], env, root)
     uv = executable(bootstrap, "uv")
     managed = dict(env, UV_PYTHON_INSTALL_DIR=str(runtime / "python"), UV_CACHE_DIR=str(runtime / "cache"))
-    run([uv, "--no-config", "python", "install", "3.12", "--no-bin", "--no-registry"], managed, root)
-    candidate = Path(run([uv, "--no-config", "python", "find", "3.12", "--managed-python", "--no-project"],
+    run([uv, "--no-config", "python", "install", request, "--no-bin", "--no-registry"], managed, root)
+    candidate = Path(run([uv, "--no-config", "python", "find", request, "--managed-python", "--no-project"],
                          managed, root, capture=True))
     if not compatible(candidate, env):
-        raise RuntimeError("The downloaded Python did not pass the Python/OpenSSL check.")
+        raise RuntimeError("The downloaded Python did not pass the Python/OpenSSL/architecture check.")
     return candidate
 
 
