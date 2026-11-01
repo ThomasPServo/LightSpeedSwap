@@ -26,10 +26,33 @@ python3 LightSpeedSwap.pyz switch --to wholesale
 python3 LightSpeedSwap.pyz switch --to mvno
 ```
 
-On Windows, use `py -3 LightSpeedSwap.pyz ...` with the same arguments. Windows
-needs Apple's device drivers/services; Linux needs working usbmuxd. Automatic
-firmware decryption/mounting requires macOS. Other hosts can import a trusted
-pack for the exact model/build. USB behavior is not established by offline tests.
+On Windows (PowerShell or Command Prompt):
+
+```powershell
+py -3 LightSpeedSwap.pyz setup
+py -3 LightSpeedSwap.pyz status
+py -3 LightSpeedSwap.pyz setup-device
+py -3 LightSpeedSwap.pyz switch --to wholesale
+py -3 LightSpeedSwap.pyz switch --to mvno
+```
+
+**Firmware preparation runs locally on macOS, Windows, and Linux.** Windows
+needs Apple's device drivers/services (installed with Apple Devices); Linux
+needs working usbmuxd and permission to access its socket. These USB prerequisites
+are separate from firmware extraction. USB behavior is not established by
+offline tests or by successfully preparing a carrier pack.
+
+| Host | Firmware preparation |
+| --- | --- |
+| macOS, Apple Silicon or Intel | Read-only APFS mount using `hdiutil` |
+| Windows, x64 | Direct APFS reading with pinned `ipsw` and 7-Zip helpers |
+| Windows 11, ARM64 | Same reader; setup selects x64 Python for dependency compatibility |
+| Linux, x86-64 or ARM64 | Direct APFS reading with pinned native helpers |
+
+Windows/Linux extraction needs no Mac, WSL, virtual machine, filesystem driver,
+FUSE mount, or administrator/root access. On Windows ARM, the private Python
+runtime uses Windows' x64 emulation because the pinned cryptography release has
+no ARM64 wheel. The setup bootstrap handles this without downgrading dependencies.
 
 Unlock and trust the connected iPhone. Unlock it again after the restart.
 `--no-reboot` leaves the restart to you and reports it as pending. If the target
@@ -94,19 +117,29 @@ still requires several GB of download and at least 25 GiB free temporary space;
 larger images require more. HTTP ranges stream only the selected IPSW member,
 using bounded reads and checking its complete ZIP CRC. This is not sparse
 extraction of individual files from an encrypted APFS image. After successful
-decryption/extraction/unmounting, the large images are deleted. Uncertain mount
-cleanup preserves the backing image and reports its location.
+decryption and extraction, the large images are deleted. Windows/Linux never
+mount the image. On macOS, uncertain unmount cleanup preserves the backing image
+and reports its location.
 
-The optional pinned `ipsw` decryption helper retains one executable (about
-83 MiB on Apple Silicon or 88 MiB on Intel). Its archive and executable hashes
-are checked. Runtime/dependencies, the helper, and manually exported packs are
-outside the payload cache cap. No full firmware image is shipped in this repo.
+The optional firmware helpers are downloaded on demand into `.carrier-tools`
+under the state directory. They use about 83–109 MiB, depending on the host:
+`ipsw` 3.1.741 decrypts AEA, and Windows/Linux additionally use 7-Zip 26.05 to
+read APFS. Archive, executable, and DLL SHA-256 hashes are pinned and checked
+before use. Windows' 7-Zip installer is unpacked as an archive; it is never run
+as an installer or added to PATH. Only the two named carrier directories are
+extracted, then their original Apple signatures are checked again.
+
+Runtime/dependencies, helpers, and manually exported packs are outside the
+payload cache cap. No helper binary or full firmware image is shipped in this
+repo or embedded in the CLI. An unfamiliar image container, unsupported APFS
+feature, or changed helper output stops preparation without writing to the phone.
 
 ## Prepare bundles with GitHub Actions
 
 Use [Prepare carrier pack](https://github.com/ThomasPServo/LightSpeedSwap/actions/workflows/carrier-pack.yml)
-to do the large download and extraction on a GitHub-hosted Mac. Run `status`
-locally, then choose **Run workflow** and enter its four public fields:
+to do the large download and extraction on a GitHub-hosted Mac, Windows, or
+Linux runner. Run `status` locally, then choose **Run workflow**, select `host`,
+and enter its four public fields:
 `product`, `hardware`, `version`, and `build`. Do not enter SIM identifiers.
 Leave `firmware_url` blank for exact-build lookup, or provide the public Apple
 IPSW URL for a beta/RC that is not indexed. Running the workflow requires write
@@ -133,9 +166,11 @@ image/manifest/file hashes and the workflow commit. It uploads no IPSW, decrypte
 image, or device identifiers, and does not add generated packs to git. Artifacts
 expire after 14 days, so keep your downloaded pack if you need it later.
 
-The Mac runner checks free space and, if needed, reclaims unused preinstalled
-Xcode applications to make temporary room. That cleanup script refuses to run outside GitHub-hosted macOS
-jobs. Extraction stops before downloading if insufficient space remains; unusually
+The runner checks free space first. When needed, the Mac runner reclaims unused
+Xcode applications and the Linux runner reclaims unused Android/.NET SDKs.
+Windows selects the temporary drive with the most free space. This space-preparation
+script refuses to run outside disposable GitHub-hosted jobs. Extraction stops
+before downloading if insufficient space remains; unusually
 large future images can need more space. Unknown formats or failed validation
 produce no artifact. Prepared packs establish file compatibility, not successful
 on-phone activation. Firmware bundles may also be older than a carrier-only
@@ -144,7 +179,8 @@ update; the existing downgrade checks still apply.
 For a request tracked in git, edit only the public fields in
 [`.github/carrier-pack-request.json`](.github/carrier-pack-request.json) and commit
 it to `main`. This also triggers preparation. Ordinary source commits do not
-start a large firmware download. The standalone builder can run on a local Mac:
+start a large firmware download. The standalone builder can run on a local Mac,
+Windows PC, or Linux machine (use x64 Python on Windows):
 
 ```sh
 python -m pip install cryptography==50.0.2
@@ -152,7 +188,7 @@ python build_carrier_pack.py --request .github/carrier-pack-request.json --outpu
 ```
 
 The output directory must not already exist. The runner space-cleanup script is
-not needed for local use. A local Mac still needs the temporary disk space
+not needed for local use. Each local host still needs the temporary disk space
 described above.
 
 ## Compatibility and evidence
@@ -297,5 +333,8 @@ CI covers Python 3.11–3.14 on Linux, macOS, and Windows.
 
 Dependencies: [pymobiledevice3](https://github.com/doronz88/pymobiledevice3),
 [cryptography](https://github.com/pyca/cryptography), and optional
-[blacktop/ipsw](https://github.com/blacktop/ipsw/tree/v3.1.741).
+[blacktop/ipsw](https://github.com/blacktop/ipsw/tree/v3.1.741) and
+[7-Zip](https://github.com/ip7z/7zip/releases/tag/26.05) helpers.
+The downloaded 7-Zip helper retains its original `License.txt`; its source and
+licensing terms are available in the [upstream repository](https://github.com/ip7z/7zip/blob/26.05/DOC/License.txt).
 Apple carrier files remain unmodified and are not relicensed as application code.
