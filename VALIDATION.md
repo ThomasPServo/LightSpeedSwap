@@ -3,9 +3,24 @@
 The repository and universal CLI contain the carrier-switching functionality,
 its firmware preparation and signature checks, SIM hygiene, and related diagnostics.
 The separate radio dashboard, native reader, and radio research have been removed.
-The carrier-switching suite contains 104 offline tests. No physical phone was
+The carrier-switching suite contains 113 offline tests. No physical phone was
 connected during this cleanup. GitHub Actions runs the suite on macOS, Windows,
 and Linux; its run status determines which configurations passed.
+
+## GitHub firmware preparation
+
+`Prepare carrier pack` runs the standalone builder on a GitHub-hosted Mac,
+fetching the selected Apple image and exporting both verified bundles. Its nine
+offline tests cover strict public-only inputs, fresh downloads despite an included
+payload, wrong-firmware rejection before image download, corrupted signatures,
+mismatched pairs, safe output handling, mount-failure retention, checksums, and
+round-trip import through the existing CLI payload code. Large images are mocked
+in those tests; the carrier files and signature verification are real.
+
+These tests do not establish actual network/decryption/mount behavior on the
+runner. A successful preparation run and its artifact receipt supply that
+separate evidence for the requested identity. They do not establish on-device
+activation or automatic support for unknown future firmware formats.
 
 ## Actual firmware coverage
 

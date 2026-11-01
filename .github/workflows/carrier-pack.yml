@@ -1,0 +1,79 @@
+name: Prepare carrier pack
+run-name: Carrier pack · ${{ inputs.product || 'repository request' }} · ${{ inputs.build || github.run_number }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      product:
+        description: 'Exact product from status (for example iPhone19,2)'
+        required: true
+        type: string
+      hardware:
+        description: 'Exact hardware board from status (for example V63AP)'
+        required: true
+        type: string
+      version:
+        description: 'Exact iOS version from status (for example 27.2)'
+        required: true
+        type: string
+      build:
+        description: 'Exact build from status (for example 24B119)'
+        required: true
+        type: string
+      firmware_url:
+        description: 'Optional public Apple IPSW URL; leave blank for exact-build lookup'
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths: ['.github/carrier-pack-request.json']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lightspeedswap-firmware-preparation
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Install signature-verification dependency
+        run: python -m pip install '--only-binary=:all:' cryptography==50.0.2
+      - name: Validate public firmware request
+        env:
+          PACK_PRODUCT: ${{ inputs.product }}
+          PACK_HARDWARE: ${{ inputs.hardware }}
+          PACK_VERSION: ${{ inputs.version }}
+          PACK_BUILD: ${{ inputs.build }}
+          PACK_URL: ${{ inputs.firmware_url }}
+        shell: bash
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            request=(--product "$PACK_PRODUCT" --hardware "$PACK_HARDWARE" --version "$PACK_VERSION" --build "$PACK_BUILD" --firmware-url "$PACK_URL")
+          else
+            request=(--request .github/carrier-pack-request.json)
+          fi
+          python build_carrier_pack.py "${request[@]}" --validate-only > "$RUNNER_TEMP/carrier-request.json"
+      - name: Reclaim unused Xcode space on the disposable runner
+        env:
+          RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: python .github/scripts/reclaim_macos_runner_space.py
+      - name: Fetch exact Apple firmware and verify both carrier bundles
+        run: python build_carrier_pack.py --request "$RUNNER_TEMP/carrier-request.json" --output-dir "$RUNNER_TEMP/lightspeed-carrier-pack"
+      - name: Upload only the small verified pack and receipts
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: LightSpeedSwap-carrier-pack-${{ github.run_id }}
+          path: ${{ runner.temp }}/lightspeed-carrier-pack/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

@@ -102,6 +102,59 @@ The optional pinned `ipsw` decryption helper retains one executable (about
 are checked. Runtime/dependencies, the helper, and manually exported packs are
 outside the payload cache cap. No full firmware image is shipped in this repo.
 
+## Prepare bundles with GitHub Actions
+
+Use [Prepare carrier pack](https://github.com/ThomasPServo/LightSpeedSwap/actions/workflows/carrier-pack.yml)
+to do the large download and extraction on a GitHub-hosted Mac. Run `status`
+locally, then choose **Run workflow** and enter its four public fields:
+`product`, `hardware`, `version`, and `build`. Do not enter SIM identifiers.
+Leave `firmware_url` blank for exact-build lookup, or provide the public Apple
+IPSW URL for a beta/RC that is not indexed. Running the workflow requires write
+access to the repository; other users can run it in their own fork.
+
+After the job succeeds, download and unzip its `LightSpeedSwap-carrier-pack-…`
+artifact. It contains one small `.carrierpack` with both bundles, `provenance.json`,
+and `SHA256SUMS.txt`. With the matching phone connected, import it and switch:
+
+```sh
+python3 LightSpeedSwap.pyz setup-device --bundle-pack /path/to/LightSpeedSwap-….carrierpack
+python3 LightSpeedSwap.pyz switch --to wholesale
+```
+
+The CLI verifies the pack again against the connected phone's exact model,
+board, version, and build. The same pack supports `--to mvno`. The workflow
+does not contact a phone or create a SIM selector. The existing CLI already
+supports this import; no app update is needed.
+
+The job fetches a fresh firmware image even if that identity is included in the
+CLI. It checks the manifest, complete downloaded ZIP member CRC, both original
+Apple signature sets, and board overrides before publishing. The receipt records
+image/manifest/file hashes and the workflow commit. It uploads no IPSW, decrypted
+image, or device identifiers, and does not add generated packs to git. Artifacts
+expire after 14 days, so keep your downloaded pack if you need it later.
+
+The standard Mac runner reclaims unused preinstalled Xcode applications to make
+temporary room. That cleanup script refuses to run outside GitHub-hosted macOS
+jobs. Extraction stops before downloading if insufficient space remains; unusually
+large future images can need more space. Unknown formats or failed validation
+produce no artifact. Prepared packs establish file compatibility, not successful
+on-phone activation. Firmware bundles may also be older than a carrier-only
+update; the existing downgrade checks still apply.
+
+For a request tracked in git, edit only the public fields in
+[`.github/carrier-pack-request.json`](.github/carrier-pack-request.json) and commit
+it to `main`. This also triggers preparation. Ordinary source commits do not
+start a large firmware download. The standalone builder can run on a local Mac:
+
+```sh
+python -m pip install cryptography==50.0.2
+python build_carrier_pack.py --request .github/carrier-pack-request.json --output-dir ./prepared-pack
+```
+
+The output directory must not already exist. The runner space-cleanup script is
+not needed for local use. A local Mac still needs the temporary disk space
+described above.
+
 ## Compatibility and evidence
 
 See [VALIDATION.md](VALIDATION.md) for actual firmware and host test coverage.
