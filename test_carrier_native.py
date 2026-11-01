@@ -9,7 +9,7 @@ import tarfile
 import tempfile
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import carrier_native as native
 import carrier_payloads as payloads
@@ -148,6 +148,20 @@ class NativeContracts(unittest.TestCase):
             native.run_capture([sys.executable, '-c', 'import time; time.sleep(20)'], timeout=0.1)
         with self.assertRaisesRegex(ValueError, 'output exceeded'):
             native.run_capture([sys.executable, '-c', 'print("x" * 100000)'], limit=1000)
+
+    def test_windows_temporary_executable_cleanup_retries_briefly_then_stops(self):
+        temporary = Mock()
+        temporary.cleanup.side_effect = [PermissionError('busy'), PermissionError('busy'), None]
+        with patch.object(native.time, 'sleep') as sleep:
+            native.cleanup_helper(temporary, 'Windows')
+        self.assertEqual(temporary.cleanup.call_count, 3)
+        self.assertEqual(sleep.call_count, 2)
+        temporary.cleanup.side_effect = PermissionError('still busy')
+        for system, expected in [('Windows', 51), ('Linux', 1)]:
+            temporary.reset_mock()
+            with patch.object(native.time, 'sleep'), self.assertRaises(PermissionError):
+                native.cleanup_helper(temporary, system)
+            self.assertEqual(temporary.cleanup.call_count, expected)
 
 
 if __name__ == '__main__':

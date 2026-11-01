@@ -124,6 +124,20 @@ def archive_files(data, names, kind):
     return result
 
 
+def cleanup_helper(temporary, system):
+    # Windows can briefly retain an executable mapping after its process exits
+    # (including under x64/x86 emulation). Retry only deletion of our private
+    # temporary helper directory, with a five-second upper bound.
+    for attempt in range(51):
+        try:
+            temporary.cleanup()
+            return
+        except PermissionError:
+            if system != 'Windows' or attempt == 50:
+                raise
+            time.sleep(0.1)
+
+
 def prepare_tool(root, fetch, kind):
     system, arch = host()
     config, version, base = (IPSW, IPSW_VERSION, IPSW_BASE) if kind == 'ipsw' else (SEVENZIP, SEVENZIP_VERSION, SEVENZIP_BASE)
@@ -150,8 +164,9 @@ def prepare_tool(root, fetch, kind):
     if kind == '7zip' and system == 'Windows':
         # Read the pinned installer as a 7z archive. Never execute the
         # installer, register shell extensions, alter PATH, or ask for admin.
-        with tempfile.TemporaryDirectory(prefix='.unpack-', dir=folder) as temporary:
-            work = Path(temporary)
+        temporary = tempfile.TemporaryDirectory(prefix='.unpack-', dir=folder)
+        try:
+            work = Path(temporary.name)
             bootstrap = fetch(SEVENZIP_BASE + '7zr.exe', 2 * 1024 * 1024)
             ensure(store.digest(bootstrap) == BOOTSTRAP_SHA256, '7-Zip bootstrap checksum mismatch.')
             (work / '7zr.exe').write_bytes(bootstrap)
@@ -161,6 +176,8 @@ def prepare_tool(root, fetch, kind):
                          '-o' + str(destination), work / 'package.exe', *hashes])
             ensure({p.name for p in destination.iterdir()} == set(hashes), 'Unexpected files in the native helper package.')
             files = {name: (destination / name).read_bytes() for name in hashes}
+        finally:
+            cleanup_helper(temporary, system)
     else:
         files = archive_files(data, hashes, 'zip' if asset.endswith('.zip') else 'tar')
     for name, expected in hashes.items():

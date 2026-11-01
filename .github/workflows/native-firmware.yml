@@ -49,7 +49,7 @@ jobs:
           RUNNER_ENVIRONMENT: ${{ runner.environment }}
         run: python .github/scripts/prepare_runner_space.py
       - name: Download, decrypt, and extract actual Apple firmware natively
-        run: python build_carrier_pack.py --request .github/native-firmware-request.json --output-dir "$CARRIER_PREP_TEMP/lightspeed-carrier-pack"
+        run: python -c 'import build_carrier_pack as b; b.main()' --request .github/native-firmware-request.json --output-dir "$CARRIER_PREP_TEMP/lightspeed-carrier-pack"
       - name: Compare the generated original files with the known firmware baseline
         run: |
           python - <<'PY'
