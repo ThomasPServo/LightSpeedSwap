@@ -3,7 +3,7 @@ name: Native Windows and Linux firmware
 on:
   workflow_dispatch:
   push:
-    branches: [main, codex/native-firmware-extraction, codex/windows-arm-extraction]
+    branches: [main]
     paths: ['.github/native-firmware-request.json']
 
 permissions:
@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ github.ref_name == 'codex/windows-arm-extraction' && fromJSON('["windows-11-arm"]') || fromJSON('["ubuntu-24.04", "windows-2025", "ubuntu-24.04-arm", "windows-11-arm"]') }}
+        os: [ubuntu-24.04, windows-2025, ubuntu-24.04-arm, windows-11-arm]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     defaults:

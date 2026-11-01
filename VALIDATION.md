@@ -1,16 +1,72 @@
-# Validation for 0.6.2
+# Validation for 0.7.0
 
 The repository and universal CLI contain the carrier-switching functionality,
 its firmware preparation and signature checks, SIM hygiene, and related diagnostics.
 The separate radio dashboard, native reader, and radio research have been removed.
-The carrier-switching suite contains 113 offline tests. No physical phone was
+The carrier-switching suite contains 125 offline tests. No physical phone was
 connected during this work. All 12 configurations in the
-[GitHub compatibility run](https://github.com/ThomasPServo/LightSpeedSwap/actions/runs/41283236244)
+[GitHub compatibility run](https://github.com/ThomasPServo/LightSpeedSwap/actions/runs/41316884588)
 passed on macOS, Windows, and Linux with Python 3.11–3.14.
+
+## Local Windows and Linux preparation
+
+`setup-device` and the standalone pack builder use pinned native `ipsw` 3.1.741
+for AEA decryption and 7-Zip 26.05 for direct APFS reading on Windows/Linux.
+No filesystem mount, FUSE/kernel driver, WSL, or Mac is involved in this path.
+The helper archives and individual binaries/DLLs are SHA-256 pinned. Windows'
+official 7-Zip package is unpacked as data; its installer is never executed.
+
+The [native firmware run](https://github.com/ThomasPServo/LightSpeedSwap/actions/runs/41316598947)
+at `0c45a83afdc69b1a4a6b6ffee373644700233306` fetched the actual **iPhone19,2 /
+V63AP / iOS 27.2 / 24B119** filesystem from Apple. Each successful job checked
+the download CRC, AEA decryption, APFS extraction, all six signature groups,
+original-byte comparison, and image cleanup:
+
+| Host | Fresh firmware preparation |
+| --- | --- |
+| Ubuntu 24.04, x86-64 | [Passed](https://github.com/ThomasPServo/LightSpeedSwap/actions/runs/41316598947/job/124877850490) |
+| Ubuntu 24.04, ARM64 | [Passed](https://github.com/ThomasPServo/LightSpeedSwap/actions/runs/41316598947/job/124877850246) |
+| Windows Server 2025, x64 | [Passed](https://github.com/ThomasPServo/LightSpeedSwap/actions/runs/41316598947/job/124877850386) |
+| Windows 11, ARM64 | [Passed](https://github.com/ThomasPServo/LightSpeedSwap/actions/runs/41316884511/job/124878703073) |
+
+Windows ARM was verified separately at
+`793649ba8c6accbd3c233a7b3e59c220f1ba23a1`, which adds a bounded retry when
+Windows briefly locks the temporary unpacker after it exits. That job started
+with native ARM64 Python, ran the app's managed x64-runtime bootstrap, passed
+all 125 tests in that runtime, then used the native ARM64 `ipsw` and 7-Zip
+helpers for actual firmware preparation. No older cryptography package was used.
+
+All four generated artifacts were also downloaded independently. Their GitHub
+artifact digests and internal checksums verified, all six Apple signature groups
+verified again, and each complete decoded pack matched the earlier macOS artifact.
+The ZIP digests differ because the archive headers include preparation timestamps;
+the manifests and original carrier bytes are identical. Each pack is 198,566 bytes.
+The downloaded filesystem SHA-256 was
+`7d9e3aa60fc241567578ffd66e4c741b91b8a1aa916ca8b17232279a5ab4b143`.
+These tests establish host preparation for this actual image; no Windows/Linux
+phone was connected and no claim of physical USB activation is made.
+
+Independently checked artifact ZIP SHA-256 values (artifacts expire after seven days):
+
+| Host | Artifact SHA-256 |
+| --- | --- |
+| Linux x86-64 | `3b2ab85747676b948910180e5c9e3dad695a8795d55cf7ad70e1becff7aab58e` |
+| Linux ARM64 | `58648648f6b6e8598332534a438ce6602308cbf706fe9fb22bcb0a0be5155b00` |
+| Windows x64 | `ae78861e97dc381257ff0508a0bab8a12d5391231873ff61ec6f7b8ecafd92ee` |
+| Windows ARM64 | `9ba16776ae490a9886117fc149b40557a693ebce8179ec1f822422047fe705e2` |
+
+Native-reader regression tests cover APFS POSIX modes, alternate attributes,
+path traversal, links, other carriers, ambiguous volumes, duplicate/oversized
+members, exact output inventories, original signed bytes, helper tampering,
+process time/output limits, and bounded Windows executable cleanup. Two runtime
+tests cover choosing x64 Python on Windows ARM because the pinned cryptography
+version does not publish an ARM64 wheel. Unknown image/metadata formats stop
+preparation before a phone write.
 
 ## GitHub firmware preparation
 
-`Prepare carrier pack` runs the standalone builder on a GitHub-hosted Mac,
+`Prepare carrier pack` runs the standalone builder on a selected GitHub-hosted
+macOS, Windows, or Linux runner,
 fetching the selected Apple image and exporting both verified bundles. Its nine
 offline tests cover strict public-only inputs, fresh downloads despite an included
 payload, wrong-firmware rejection before image download, corrupted signatures,
@@ -125,18 +181,21 @@ closed/disconnected. Automatic carrier OTA precedence is not guaranteed.
 The user's earlier physical confirmation applies to the earlier prefix-selector
 release, not the newly narrowed selector, migration, automated reboot, or future
 models. These changes and cross-carrier cellular service still need physical
-confirmation. The GitHub run above establishes macOS extraction/mount for its
-one requested identity; it does not test every future image or host.
+confirmation. The firmware runs above establish extraction on their listed
+hosts for the requested identity; they do not test every future image or phone.
 
 ## Dependencies and sources
 
 Top-level versions: pymobiledevice3 11.49.1 and cryptography 50.0.2. Runtime setup
-uses a private environment. The optional blacktop/ipsw 3.1.741 Mac helper has
-pinned archive and executable SHA-256 hashes in `carrier_payloads.py`.
+uses a private environment. Optional blacktop/ipsw 3.1.741 and 7-Zip 26.05
+helpers have pinned archive, executable, DLL, and (for 7-Zip) license hashes in
+`carrier_payloads.py` and `carrier_native.py`.
 
 - [IPSW extraction implementation](https://github.com/blacktop/ipsw/blob/v3.1.741/internal/commands/extract/extract.go)
 - [AEA implementation](https://github.com/blacktop/ipsw/tree/v3.1.741/pkg/aea)
 - [IPSW release](https://github.com/blacktop/ipsw/releases/tag/v3.1.741)
+- [7-Zip APFS reader](https://github.com/ip7z/7zip/blob/26.05/CPP/7zip/Archive/ApfsHandler.cpp)
+- [7-Zip release](https://github.com/ip7z/7zip/releases/tag/26.05)
 - [pymobiledevice3 installation service](https://github.com/doronz88/pymobiledevice3/blob/master/pymobiledevice3/services/installation_proxy.py)
 - [Unfamiliar 24A437 Apple image](https://updates.cdn-apple.com/2026FallFCS/f35a2940-4b73-46b3-8ac7-01296d8a033b/iPhone13,2,iPhone13,3_27.0_24A437_Restore.ipsw)
 - [Unfamiliar 24B91020 Apple image](https://updates.cdn-apple.com/2026FallFCS/8d0335dc-f553-4d16-b07b-28951fde8f9e/iPhone19,4_27.2_24B91020_Restore.ipsw)
