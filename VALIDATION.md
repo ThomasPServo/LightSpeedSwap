@@ -1,12 +1,42 @@
-# Validation for 0.7.0
+# Validation for 0.7.1
 
 The repository and universal CLI contain the carrier-switching functionality,
 its firmware preparation and signature checks, SIM hygiene, and related diagnostics.
 The separate radio dashboard, native reader, and radio research have been removed.
-The carrier-switching suite contains 125 offline tests. No physical phone was
-connected to the automated test hosts. All 12 configurations in the
+The 0.7.0 carrier-switching suite contained 125 offline tests. No physical phone was
+connected to the automated test hosts. Its 12 configurations in the
 [GitHub compatibility run](https://github.com/ThomasPServo/LightSpeedSwap/actions/runs/41316884588)
 passed on macOS, Windows, and Linux with Python 3.11–3.14.
+
+## Intel Mac setup in 0.7.1
+
+The dependency resolver selects a single, SHA-256-pinned Espressif wheel only
+for a Darwin/x86_64 interpreter. It remains cryptography **50.0.2**; other hosts
+use the existing PyPI pin. pip checks the URL hash before installing and is
+instructed not to build cryptography from source. A failed 0.7.0 dependency
+installation can be repaired by running the new app's `setup` command again.
+The installer keeps the existing compatible private interpreter and does not
+remove the carrier cache or baseline receipts.
+
+- Vendor: [Espressif's maintained Intel build](https://github.com/espressif/idf-python-wheels#macos-intel-x86_64-and-cryptography).
+- File: `cryptography-50.0.2-cp311-abi3-macosx_10_12_x86_64.whl`.
+- Bytes: 3,716,685.
+- SHA-256: `40d870c49cc78ea7f3db421e7a1ae2bd12d9548157714de729c3b7cccd469af0`.
+- All 110 `.py`/`.pyi` files match the official PyPI 50.0.2 source distribution.
+- PyPI source SHA-256: `7b46165bb56eb4704e2eaaf86f3c940d19154535d9b0ca7d6d590b04060e00d5`.
+
+This is a third-party build of the current dependency, not renewed Intel support
+from PyCA. The hash pins reviewed bytes; it is not a claim that the native
+binary was reproduced bit for bit. Intel native imports, Apple's bundled
+signature checks, and external library linkage are checked in our own CI.
+The `.pyz` remains under 500 KiB because the wheel is downloaded at setup time.
+
+The expanded workflow has 16 Python 3.11–3.14 jobs across Linux, Windows, Apple
+Silicon macOS, and Intel macOS 15, plus two actual zipapp setup jobs on Intel
+macOS 15 and 26/Python 3.14. Setup tests begin with an incomplete environment,
+disable access to compilers and OpenSSL development files, run setup twice,
+and compare the original receipts/cache afterward. Publication is gated on all
+18 jobs. The run evidence is recorded below when validation completes.
 
 ## Physical SA and UC confirmation
 

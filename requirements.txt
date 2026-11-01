@@ -1,2 +1,8 @@
 pymobiledevice3==11.49.1
-cryptography==50.0.2
+# Never fall back to compiling this native dependency on an end user's machine.
+--only-binary=cryptography
+cryptography==50.0.2; sys_platform != 'darwin' or platform_machine != 'x86_64'
+# Upstream stopped publishing Intel Mac wheels. Espressif maintains this build
+# of the SAME release with OpenSSL linked statically; only this file is trusted.
+# The hash is checked by pip before installation. No extra package index is used.
+cryptography @ https://dl.espressif.com/pypi/cryptography/cryptography-50.0.2-cp311-abi3-macosx_10_12_x86_64.whl#sha256=40d870c49cc78ea7f3db421e7a1ae2bd12d9548157714de729c3b7cccd469af0 ; sys_platform == 'darwin' and platform_machine == 'x86_64'

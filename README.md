@@ -34,6 +34,17 @@ Python 3.9+ starts it; explicit one-time setup prepares a private Python 3.11+
 runtime with the tested dependencies. Python and dependencies are not embedded
 in the small app download.
 
+**Intel Mac setup is supported in 0.7.1.** Download the new `.pyz` and run
+`python3 LightSpeedSwap.pyz setup` again, including after a failed 0.7.0 install.
+No Homebrew, Rust, OpenSSL development package, or manual runtime deletion is
+needed for this fix. Existing carrier cache and restoration receipts are kept.
+Setup uses a SHA-256-pinned Intel build of **cryptography 50.0.2** maintained by
+[Espressif](https://github.com/espressif/idf-python-wheels#macos-intel-x86_64-and-cryptography),
+with OpenSSL included. Apple Silicon, Windows x64, and Linux retain their PyPI
+packages. The Intel wheel is downloaded only when needed; it is not embedded
+in the CLI. A missing or changed package stops setup instead of compiling it or
+silently installing an older cryptography version.
+
 On macOS/Linux:
 
 ```sh
@@ -201,7 +212,7 @@ start a large firmware download. The standalone builder can run on a local Mac,
 Windows PC, or Linux machine (use x64 Python on Windows):
 
 ```sh
-python -m pip install cryptography==50.0.2
+python -m pip install -r requirements.txt
 python build_carrier_pack.py --request .github/carrier-pack-request.json --output-dir ./prepared-pack
 ```
 
@@ -350,13 +361,20 @@ python build_cli.py
 The build produces only `dist/LightSpeedSwap.pyz` and its checksum. Its stored
 outer ZIP members make the output reproducible across Python/zlib versions;
 the carrier pack inside is already compressed. Tests never access a phone.
-CI covers Python 3.11–3.14 on Linux, macOS, and Windows.
+CI covers Python 3.11–3.14 on Linux, Windows, Apple Silicon macOS, and Intel
+macOS 15. Separate Intel macOS 15 and 26 jobs exercise the actual zipapp setup
+with Python 3.14, unavailable compilers/OpenSSL development files, an incomplete
+old environment, and repeated setup. They verify that restoration records and
+cached files survive, and that the crypto extension has no Homebrew linkage.
+These are host setup tests, not physical USB/iPhone tests or a promise that
+every obsolete macOS release supports the dependency set.
 
 Release publishing is separate from firmware preparation. The
 [`Publish release`](.github/workflows/release.yml) workflow validates the version
 and SHA-256 in [`.github/release-request.json`](.github/release-request.json),
 rebuilds the CLI byte-for-byte, and publishes only the CLI and its checksum as
 release assets. Update the request and `RELEASE_NOTES.md` for a new version.
+Publishing waits for all compatibility and Intel setup checks to pass.
 Existing releases are never overwritten automatically.
 
 Dependencies: [pymobiledevice3](https://github.com/doronz88/pymobiledevice3),

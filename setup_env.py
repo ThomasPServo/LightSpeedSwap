@@ -17,6 +17,8 @@ MARKER = "carrier-selector-local-runtime-v1\n"
 PROBE = (
     "import sys,ssl,sysconfig; "
     "sys.exit(0 if (3,11)<=sys.version_info[:2] "
+    "and sys.implementation.name=='cpython' "
+    "and not sysconfig.get_config_var('Py_GIL_DISABLED') "
     "and (sys.platform!='win32' or sysconfig.get_platform()=='win-amd64') "
     "and ssl.OPENSSL_VERSION.startswith('OpenSSL ') "
     "and ssl.OPENSSL_VERSION_INFO[:3]>=(1,1,1) else 1)"
@@ -57,8 +59,8 @@ def select_python(runtime, root, env, *, managed_only=False):
     private_python = executable(runtime / "env")
     if compatible(private_python, env):
         return private_python
-    candidates = [shutil.which(name) for name in ("python3.12", "python3.11", "python3.13", "python3.14")]
-    candidates += [sys.executable, shutil.which("python3")]
+    candidates = [sys.executable]
+    candidates += [shutil.which(name) for name in ("python3.12", "python3.11", "python3.13", "python3.14", "python3")]
     if sys.platform == "darwin":
         for prefix in ("/opt/homebrew", "/usr/local"):
             candidates.append(prefix + "/opt/python@3.12/bin/python3.12")
@@ -116,7 +118,7 @@ def main():
                 index += 1
             destination.rename(runtime / ("env.previous-" + str(index)))
         run([selected, "-I", "-m", "venv", destination], env, root)
-    print("Installing pinned requirements into the private environment...", flush=True)
+    print("Installing pinned requirements into the private environment (prebuilt cryptography; no Rust/OpenSSL build)...", flush=True)
     run([private_python, "-I", "-m", "pip", "--isolated", "install", "--disable-pip-version-check",
          "--index-url", "https://pypi.org/simple", "--upgrade", "-r", root / "requirements.txt"], env, root)
     run([private_python, "-I", "-m", "pip", "check"], env, root)
