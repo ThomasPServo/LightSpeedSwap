@@ -1,3 +1,17 @@
+## 0.7.2 HTTPS certificate regression coverage
+
+The download paths now add explicit certifi roots to Python's default/configured
+trust. Offline tests perform real TLS handshakes in memory: a missing default CA
+store is repaired, explicit configured roots remain trusted, and unknown issuers
+and incorrect hostnames are rejected. Metadata and range request tests check
+that the verified context reaches urllib. There is no insecure retry.
+
+Intel setup CI additionally requests the IPSW.me device index and an Apple HTTPS
+resource with default CA file/directory paths missing. This checks HTTPS trust
+without accessing a phone or downloading a firmware image. See the release
+workflow for results on each host; local TLS fixtures do not establish remote
+service availability or physical device activation.
+
 # Validation for 0.7.1
 
 The repository and universal CLI contain the carrier-switching functionality,

@@ -20,6 +20,7 @@ import urllib.request
 from carrier_signature_audit import read_package, check_signatures
 import carrier_store as store
 from carrier_paths import data_root
+from carrier_https import https_context
 
 NAMES = {"mvno": "TMobile_MVNO_US", "wholesale": "TMobile_Wholesale_US"}
 IPSW_VERSION = "3.1.741"
@@ -236,7 +237,7 @@ def apple_url(url):
 
 def get_bytes(url, limit):
     request = urllib.request.Request(url, headers={'User-Agent': 'LightSpeedSwap/0.5.0 (local firmware importer)'})
-    with urllib.request.urlopen(request, timeout=45) as response:
+    with urllib.request.urlopen(request, timeout=45, context=https_context()) as response:
         data = response.read(limit + 1)
     ensure(len(data) <= limit, "Download exceeded the expected size.")
     return data

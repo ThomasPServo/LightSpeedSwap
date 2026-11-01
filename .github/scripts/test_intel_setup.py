@@ -47,6 +47,18 @@ def main():
             assert (runtime / 'env' / 'pyvenv.cfg').read_bytes() == original_config
             assert not list(runtime.glob('env.previous-*'))
             print('Incomplete-runtime repair' if attempt == 0 else 'Repeated setup', 'passed', flush=True)
+        # Reproduce python.org installs whose default CA paths are absent.
+        # Exercise the production urllib path against both download services.
+        tls_env = dict(env, SSL_CERT_FILE=str(state / 'missing-ca.pem'),
+                       SSL_CERT_DIR=str(state / 'missing-ca-dir'))
+        tls_probe = (
+            'from carrier_payloads import get_bytes; '
+            'assert get_bytes("https://api.ipsw.me/v4/device/iPhone19,2?type=ipsw", 16*1024*1024); '
+            'assert get_bytes("https://www.apple.com/library/test/success.html", 1024*1024); '
+            'print("Verified HTTPS with absent default CA paths; no phone accessed.")'
+        )
+        subprocess.run([str(private_python), '-s', '-c', tls_probe],
+                       env=tls_env, cwd=ROOT, check=True, timeout=120)
         probe = (
             'import json,platform,sys; import cryptography; '
             'from cryptography.hazmat.bindings import _rust; '

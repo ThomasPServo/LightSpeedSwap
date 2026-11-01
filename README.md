@@ -34,7 +34,7 @@ Python 3.9+ starts it; explicit one-time setup prepares a private Python 3.11+
 runtime with the tested dependencies. Python and dependencies are not embedded
 in the small app download.
 
-**Intel Mac setup is supported in 0.7.1.** Download the new `.pyz` and run
+**Intel Mac setup is supported in 0.7.1 and later.** Download the new `.pyz` and run
 `python3 LightSpeedSwap.pyz setup` again, including after a failed 0.7.0 install.
 No Homebrew, Rust, OpenSSL development package, or manual runtime deletion is
 needed for this fix. Existing carrier cache and restoration receipts are kept.
@@ -44,6 +44,13 @@ with OpenSSL included. Apple Silicon, Windows x64, and Linux retain their PyPI
 packages. The Intel wheel is downloaded only when needed; it is not embedded
 in the CLI. A missing or changed package stops setup instead of compiling it or
 silently installing an older cryptography version.
+
+**0.7.2 fixes macOS certificate errors during `setup-device`.** Replace the
+previous download and run `python3 LightSpeedSwap.pyz setup` once, then retry
+`setup-device`. Firmware-index, Apple range, and helper downloads now load an
+explicit certifi CA bundle alongside Python's configured trust roots. Certificate
+and hostname checks stay enabled; no system certificate installation is needed.
+The OpenSSL legacy-provider warning is separate from HTTPS certificate trust.
 
 On macOS/Linux:
 

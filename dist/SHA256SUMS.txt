@@ -1,1 +1,1 @@
-26b24b722dfb6d7ca09056f9478b8cc6ee4cddca8214e61e39a0bfaae55a0c26  LightSpeedSwap.pyz
+40876d97b145f99faaad334a7e324aa6d6eb41127a824a9503465009fb8acfaf  LightSpeedSwap.pyz

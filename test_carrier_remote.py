@@ -36,7 +36,8 @@ def firmware(compression):
 class RangeDownloadContracts(unittest.TestCase):
     def serve(self, data):
         self.requests = []
-        def fetch(request, timeout):
+        def fetch(request, timeout, context):
+            self.assertTrue(context.check_hostname)
             match = re.fullmatch(r'bytes=([0-9]+)-([0-9]+)', request.get_header('Range'))
             self.assertIsNotNone(match)
             start, end = map(int, match.groups())

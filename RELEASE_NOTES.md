@@ -1,44 +1,37 @@
-# LightSpeedSwap 0.7.1
+# LightSpeedSwap 0.7.2
 
-Intel Mac setup now installs a checksum-pinned, prebuilt cryptography 50.0.2
-package with OpenSSL included. This fixes the Rust/OpenSSL build failure reported
-with Intel Python 3.14. No Homebrew, Rust, or OpenSSL development installation is
-needed for this fix, and no cryptography downgrade is used.
+Fix `setup-device` failing with `SSL: CERTIFICATE_VERIFY_FAILED` on macOS Python
+installations whose default CA file is missing or incomplete.
 
 ## Upgrade
 
-Download the new **LightSpeedSwap.pyz**, replace your previous download, and run:
+Replace the old **LightSpeedSwap.pyz** with this release and run:
 
 ```sh
 python3 ~/Downloads/LightSpeedSwap.pyz setup
+python3 ~/Downloads/LightSpeedSwap.pyz setup-device
 ```
 
-This also retries a failed 0.7.0 installation. Keep the existing LightSpeedSwap
-data folder: setup preserves your carrier cache and original-bundle receipts.
-Once setup passes, use `status`, `setup-device`, and `switch` as before.
+Setup refreshes dependencies in the existing private runtime and preserves
+carrier caches and original-bundle receipts. No system Python certificate
+installer, Homebrew, Rust, or manual runtime deletion is required.
 
-## Compatibility changes
+## Changes
 
-- Intel macOS uses one SHA-256-pinned wheel from Espressif's official package
-  service. Apple Silicon, Windows x64, and Linux keep their PyPI dependency path.
-- A compatible existing private runtime is reused; fresh setup prefers the
-  supported Python that launched it. Interpreters incompatible with ABI3 wheels
-  are rejected so setup can select a supported private runtime.
-- cryptography source builds are disabled: a missing or changed wheel produces
-  a setup error instead of a Rust/OpenSSL compilation attempt.
-- CI adds Intel Mac Python 3.11–3.14 coverage and actual zipapp repair/repeat setup
-  checks on Intel macOS 15 and 26 with Python 3.14. Release publication waits for
-  all compatibility checks.
+- Add certifi 2026.10.19 as an explicit pinned runtime dependency.
+- Use the same verified HTTPS context for firmware-index requests, Apple IPSW
+  range downloads, and firmware-helper downloads. Load certifi roots alongside
+  the default/configured Python roots; retain certificate and hostname checks.
+- Check that the CA bundle can load during the offline runtime doctor check.
+- Add real in-memory TLS regression tests for missing default roots, preserved
+  configured roots, unknown issuers, and incorrect hostnames.
+- Extend Intel macOS setup checks to request firmware-index and Apple HTTPS
+  resources with default CA paths deliberately missing. No phone is accessed.
 
-The app stays under 500 KiB. The Intel dependency downloads separately during
-setup; Python and other dependencies are still not embedded in the CLI.
-Only the universal CLI and SHA256SUMS.txt are release assets.
+The Intel cryptography fix from 0.7.1 is retained. The OpenSSL legacy-provider
+warning concerns optional legacy algorithms and is separate from this certificate
+trust error. This release does not suppress the warning or disable verification.
+Carrier switching behavior and existing device/firmware validation limits remain
+unchanged. Host tests do not establish physical USB switching on every host.
 
-Carrier switching behavior is unchanged. The owner has confirmed both switching
-directions on iOS 27.2/24B119 and SA/UC on a US iPhone 18 Pro. This release adds
-host setup coverage; it does not establish physical USB switching on every host
-or compatibility with every past/future iOS or macOS version. No phone is accessed
-by setup. No backup, restore, OS rollback, or Find My change is required.
-
-See the [README](https://github.com/ThomasPServo/LightSpeedSwap/blob/v0.7.1/README.md)
-and [validation record](https://github.com/ThomasPServo/LightSpeedSwap/blob/v0.7.1/VALIDATION.md).
+Independent project; not affiliated with Apple, US Mobile, or T-Mobile.

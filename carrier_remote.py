@@ -12,6 +12,7 @@ import time
 import urllib.parse
 import urllib.request
 import zipfile
+from carrier_https import https_context
 
 READ_LIMIT = 16 * 1024 * 1024
 CHUNK = 4 * 1024 * 1024
@@ -47,7 +48,7 @@ class RangeReader(io.RawIOBase):
         request = urllib.request.Request(self.url, headers={
             'Range': f'bytes={start}-{end}', 'Accept-Encoding': 'identity',
             'User-Agent': 'LightSpeedSwap/0.5.0'})
-        with urllib.request.urlopen(request, timeout=min(45, remaining)) as response:
+        with urllib.request.urlopen(request, timeout=min(45, remaining), context=https_context()) as response:
             final = urllib.parse.urlsplit(response.geturl())
             host = final.hostname or ''
             if (final.scheme != 'https' or not any(host == domain or host.endswith('.' + domain)

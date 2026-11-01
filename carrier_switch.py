@@ -22,7 +22,7 @@ import zipfile
 from dataclasses import dataclass, field
 
 ROOT = Path(__file__).resolve().parent
-RELEASE = "LightSpeedSwap 0.7.1"
+RELEASE = "LightSpeedSwap 0.7.2"
 TARGETS = {"mvno": "com.apple.TMobile_MVNO_US",
            "wholesale": "com.apple.TMobile_Wholesale_US"}
 IMSI_KEY = "InternationalMobileSubscriberIdentity"
@@ -383,6 +383,8 @@ def doctor():
     require(ssl.OPENSSL_VERSION.startswith("OpenSSL "), "Use bash Setup.command for an OpenSSL Python runtime.")
     require(version("pymobiledevice3") == "11.49.1", "Run Setup.command for the tested pymobiledevice3 version.")
     require(version("cryptography") == "50.0.2", "Run setup for the tested cryptography version.")
+    from carrier_https import https_context
+    https_context()
     from cf_string_contract import check_native_macos_contract
     say("Selector " + RELEASE + "; " + check_native_macos_contract())
     from types import SimpleNamespace

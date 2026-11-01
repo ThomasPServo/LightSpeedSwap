@@ -1,4 +1,6 @@
 pymobiledevice3==11.49.1
+# Explicit trust roots for urllib downloads, including macOS Python without a CA file.
+certifi==2026.10.19
 # Never fall back to compiling this native dependency on an end user's machine.
 --only-binary=cryptography
 cryptography==50.0.2; sys_platform != 'darwin' or platform_machine != 'x86_64'
