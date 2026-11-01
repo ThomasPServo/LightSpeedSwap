@@ -1,0 +1,32 @@
+name: Build Intel cryptography wheel
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/intel-wheel-request.json']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.repository == 'ThomasPServo/LightSpeedSwap' && github.ref == 'refs/heads/main'
+    runs-on: macos-15-intel
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.11'
+          architecture: x64
+      - name: Build and validate current OpenSSL and cryptography
+        run: python .github/scripts/build_intel_wheel.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: intel-cryptography-wheel
+          path: vendor/intel-macos/
+          retention-days: 30
+          if-no-files-found: error
