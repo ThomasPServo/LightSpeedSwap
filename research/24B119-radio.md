@@ -156,3 +156,21 @@ record build/model, read during cellular traffic, and export the projected
 report. A populated QoS flow would establish access for that configuration.
 A denial/empty response must remain a denial/empty response, not a guessed
 priority class or a claim of compatibility.
+
+## Log-format check following an empty USB report
+
+The actual description methods were also decompiled in Ghidra:
+`CTCellularQoSFlow.description` at **0x19dfac7b0**,
+`CTQoS.description` at **0x19dfac1ac**, and
+`CTDataConnectionStatus.description` at **0x19dfa87c8**.
+The shared opening format at **0x1e4165a20** points to `<%@ %p`; flow fields use
+`, flowId=%lu`, `, bearerId=%lu`, `, txQos=%@`, and `, rxQos=%@`.
+These shapes agree with the original parser. That does not prove they are
+emitted over paired USB in a particular capture.
+
+An export containing mode events but no QoS/cell rows cannot establish whether
+the original log lacked the fields, hid them, or used an unrecognized shape:
+raw messages were deliberately not retained. Version 0.6.1 adds aggregate
+candidate/redaction/decoding counters to distinguish those cases more clearly
+without retaining raw logs. A redacted TX value must not consume a later RX
+object; that parser boundary is now enforced and covered by a regression test.

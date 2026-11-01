@@ -22,7 +22,7 @@ import zipfile
 from dataclasses import dataclass, field
 
 ROOT = Path(__file__).resolve().parent
-RELEASE = "LightSpeedSwap 0.6.0"
+RELEASE = "LightSpeedSwap 0.6.1"
 TARGETS = {"mvno": "com.apple.TMobile_MVNO_US",
            "wholesale": "com.apple.TMobile_Wholesale_US"}
 IMSI_KEY = "InternationalMobileSubscriberIdentity"

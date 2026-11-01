@@ -26,6 +26,47 @@ CELL = ('slotID=CTSubscriptionSlotOne { kCTCellMonitorCellRadioAccessTechnology 
 
 
 class RadioContracts(unittest.TestCase):
+    def test_hidden_tx_never_copies_rx_qos(self):
+        for unavailable in ('<private>', '<redacted>', '(null)', 'nil'):
+            message = '<CTCellularQoSFlow 0x1, flowId=7, txQos=' + unavailable + ', rxQos=<CTQoS 0x2, qci=8>>'
+            row = parse_message(message, WHEN)[0]
+            self.assertIsNone(row['tx'])
+            self.assertEqual(row['rx'], 8)
+
+    def test_mode_only_stream_reports_zero_measurements(self):
+        model = RadioModel(); model.reset('live'); model.state('streaming', 'Listening')
+        for _ in range(65): model.feed('reg.dataMode=LTE (14)', WHEN)
+        model.records_seen = 23560
+        state = model.snapshot(EPOCH)
+        self.assertEqual(state['observations'], [])
+        self.assertEqual(state['measurements_seen'], 0)
+        self.assertEqual(state['measurement_state'], 'none')
+        self.assertEqual(state['diagnostics']['unattributed_mode_events'], 65)
+        self.assertIn('no QoS classes or cell bands', state['detail'])
+
+    def test_candidate_counters_distinguish_redaction_and_unparsed_data(self):
+        model = RadioModel()
+        model.feed('connection qosFlows=<private> subscriber=310240123456789', WHEN)
+        model.feed('kCTCellMonitorBandInfo=unknown', WHEN)
+        model.feed(QOS, WHEN)
+        d = model.snapshot(EPOCH)['diagnostics']
+        self.assertEqual(d['qos_candidate_messages'], 2)
+        self.assertEqual(d['unparsed_qos_candidate_messages'], 1)
+        self.assertEqual(d['unparsed_cell_candidate_messages'], 1)
+        self.assertEqual(d['redacted_candidate_messages'], 1)
+        self.assertNotIn('310240123456789', json.dumps(model.snapshot(EPOCH)))
+        model.reset('live')
+        self.assertTrue(all(v == 0 for v in model.snapshot(EPOCH)['diagnostics'].values()))
+
+    def test_measurement_health_ages_without_claiming_connection_failure(self):
+        model = RadioModel(); model.reset('live'); model.state('streaming', 'Listening')
+        model.feed(QOS, WHEN)
+        self.assertEqual(model.snapshot(EPOCH)['measurement_state'], 'recent')
+        state = model.snapshot(EPOCH + 31)
+        self.assertEqual(state['measurement_state'], 'stale')
+        self.assertEqual(state['status'], 'streaming')
+        self.assertEqual(state['measurements_seen'], 1)
+
     def test_qos_values_are_distinct_from_flow_and_bearer(self):
         row = parse_message(QOS, WHEN)[0]
         self.assertEqual((row['tx'], row['rx'], row['flow'], row['bearer']), (9, 8, 7, 5))

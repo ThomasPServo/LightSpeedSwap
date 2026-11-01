@@ -8,11 +8,11 @@ once, and verifies the selected SIM afterward.
 **No backup, restore, OS downgrade, or Find My change.** `--skip-backup` remains
 accepted for compatibility; every command always skips backups.
 
-Version 0.6.0 also adds an experimental **radio dashboard** and
+Version 0.6.1 includes an experimental **radio dashboard** and
 [native iPhone reader](ios/README.md). The [Ghidra analysis of 24B119](research/24B119-radio.md)
 traces an on-device internet-QoS read path. Serving-cell reads have a separate
-SPI permission requirement; neither the native reader nor USB collection has
-been verified on a physical phone. Missing data stays unknown.
+SPI permission requirement; usable QoS/cell measurements from the native reader
+or USB collector have not been verified on a physical phone. Missing data stays unknown.
 
 ## Download and run
 
@@ -61,6 +61,14 @@ not collect a backup or install a carrier bundle. It shows QCI/5QI only when a
 QoS object contains the class, and bands only from explicit cell measurements.
 Logging may omit or redact these fields. Demo readings are always synthetic;
 saved reports are always historical.
+
+**Streaming means logs are arriving, not that QoS or bands are available.**
+The dashboard counts QoS/cell measurements separately from mode events. An empty
+stream of measurements displays **NO MEASUREMENTS**. Expand **Reader diagnostics**
+for counts of candidate messages, undecoded candidates, redaction markers and
+unattributed modes; these counters are included in exported JSON without raw
+logs. A candidate only contains a recognized field name and may not contain a
+measurement. Older exports cannot retrospectively supply these counters.
 
 `--share` enables the same dashboard on the trusted local network using a
 temporary access key. It prints a phone link for Safari or the native app.

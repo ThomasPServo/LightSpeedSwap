@@ -1,4 +1,4 @@
-# Validation for 0.6.0
+# Validation for 0.6.1
 
 The 0.5.0 baseline had **104 offline tests passing on Linux with Python 3.11,
 3.12, 3.13, and 3.14**. The 0.6.0 suite adds 25 radio contracts (129 total).
@@ -9,6 +9,15 @@ GitHub Actions also runs the source suite on macOS, Windows, and Linux; its
 actual run status, not this document, determines whether those jobs passed.
 
 ## Radio reader validation
+
+0.6.1 adds four regression tests for mode-only streams, missing/redacted TX
+values followed by RX, diagnostic counters/reset/privacy, and measurement aging.
+All **133 tests passed locally with Python 3.12**. Desktop and phone browser
+checks confirmed the mode-only state, separate counters, and redacted-TX/visible-RX
+display without overflow or browser errors.
+The prior `observations_seen` field includes mode events and remains for format
+compatibility; `measurements_seen` explicitly counts only QoS/cell events.
+No QoS/band success is inferred from a stream with mode events alone.
 
 - Actual 24B119 CommCenter and extracted CoreTelephony were analyzed in Ghidra
   12.2, including request permissions, the QoS conversion and APN-redaction
@@ -26,8 +35,9 @@ actual run status, not this document, determines whether those jobs passed.
   synthetic data. Both displayed n41/n71 and TX/RX class values, with no browser
   errors or horizontal overflow. These screenshots are not phone measurements.
 
-No phone was connected for this work. Neither native QoS/serving-band access nor
-paired-USB visibility was physically verified. Firmware analysis establishes a
+No phone was connected to the development environment for this work. Neither
+native nor paired-USB QoS/serving-band measurements were physically verified.
+Firmware analysis establishes a
 candidate access route, not successful runtime access on all models or builds.
 The read-only path does not change the existing carrier-switch safeguards.
 

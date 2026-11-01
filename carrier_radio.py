@@ -21,6 +21,9 @@ SLOT = re.compile(r"\bslotID\s*[:=]\s*(?:CTSubscriptionSlot|k)?(One|Two)\b")
 CELL_KV = re.compile(r'kCTCellMonitor(\w+)["\s]*[:=]\s*["\s]*([\w.\-]+)')
 MODE = re.compile(r"(?:reg\.dataMode\s*=\s*|dataMode\s*[:=]\s*k?)(NRNSA|NoData|LTE|NR)\b")
 CONNECTED_ROLES = {"Serving", "Primary", "Secondary"}
+QOS_MARKER = re.compile(r"\b(?:CTCellularQoSFlow|CTQoS|qosFlows|[tr]xQos|qci)\b")
+CELL_MARKER = re.compile(r"\b(?:kCTCellMonitor\w+|CTCellInfo)\b")
+REDACTION = re.compile(r"<(?:private|redacted)>", re.I)
 
 
 def clean(value, length=100):
@@ -100,8 +103,10 @@ def parse_message(message, when=None):
         for direction in ("tx", "rx"):
             match = re.search(direction + r"Qos\s*=\s*", obj)
             if match:
-                qos = next(objects(obj[match.end():], "CTQoS"), None)
-                values[direction] = number(field(qos[1], "qci"), 1, 255, True) if qos else None
+                value = obj[match.end():].lstrip()
+                qos = next(objects(value, "CTQoS"), None)
+                # A hidden/null TX must not consume a later RX object.
+                values[direction] = number(field(qos[1], "qci"), 1, 255, True) if qos and qos[0] == 0 else None
             else:
                 values[direction] = None
         if all(v is None for v in values.values()):
@@ -191,6 +196,10 @@ class RadioModel:
             self.records_seen = 0
             self.observations_seen = 0
             self.dropped = 0
+            self.diagnostics = dict.fromkeys(("qos_candidate_messages", "cell_candidate_messages",
+                "unparsed_qos_candidate_messages", "unparsed_cell_candidate_messages",
+                "redacted_candidate_messages", "oversized_messages", "mode_events",
+                "unattributed_mode_events", "qos_events", "cell_events"), 0)
 
     def state(self, status, detail):
         with self.lock:
@@ -200,13 +209,31 @@ class RadioModel:
         observations = parse_message(message, when)
         with self.lock:
             self.records_seen += 1
+            # Retain only counts over fixed markers, never raw log excerpts.
+            if isinstance(message, str):
+                if len(message) > MAX_MESSAGE:
+                    self.diagnostics["oversized_messages"] += 1
+                else:
+                    kinds = {row["kind"] for row in observations}
+                    candidates = []
+                    for kind, marker in (("qos", QOS_MARKER), ("cell", CELL_MARKER)):
+                        if marker.search(message):
+                            candidates.append(kind)
+                            self.diagnostics[kind + "_candidate_messages"] += 1
+                            if kind not in kinds:
+                                self.diagnostics["unparsed_" + kind + "_candidate_messages"] += 1
+                    if candidates and REDACTION.search(message):
+                        self.diagnostics["redacted_candidate_messages"] += 1
             for row in observations:
                 self.add(row)
 
     def add(self, row):
         with self.lock:
             self.observations_seen += 1
+            self.diagnostics[row["kind"] + "_events"] += 1
             if row["kind"] == "mode":
+                if row["slot"] == "Unknown":
+                    self.diagnostics["unattributed_mode_events"] += 1
                 self.modes.append(row)
                 return
             fields = ("slot", "apn", "interface", "bearer", "flow") if row["kind"] == "qos" else ("slot", "rat", "band", "arfcn", "role", "cell_key")
@@ -253,12 +280,19 @@ class RadioModel:
                     row["classification"] = "inferred from same-slot dataMode within 5 seconds" if row["network_mode"] else "unresolved"
                 rows.append(row)
             rows.sort(key=lambda r: r["epoch"] if r["epoch"] is not None else -1, reverse=True)
-            return {"schema": SCHEMA, "source": self.source, "status": self.status, "detail": self.detail,
+            detail, measurement_state = self.detail, "historical"
+            if self.source == "live" and self.status == "streaming":
+                measurement_state = "recent" if any(r["fresh"] for r in rows) else "stale" if rows else "none"
+                if not rows and self.records_seen:
+                    detail = "USB logs are arriving, but no QoS classes or cell bands have been decoded. Mode events alone do not supply either measurement."
+            return {"schema": SCHEMA, "source": self.source, "status": self.status, "detail": detail,
                     "generated_at": datetime.fromtimestamp(now, timezone.utc).isoformat(),
                     "freshness_seconds": TTL, "device": dict(self.device), "observations": rows,
                     "modes": list(self.modes), "records_seen": self.records_seen,
                     "observations_seen": self.observations_seen, "dropped": self.dropped,
-                    "coverage": "Best-effort log observations; not a complete carrier-aggregation inventory. iOS 27.2 device validation pending."}
+                    "measurements_seen": self.diagnostics["qos_events"] + self.diagnostics["cell_events"],
+                    "measurement_state": measurement_state, "diagnostics": dict(self.diagnostics),
+                    "coverage": "USB log reception does not establish QoS or band access. Missing, redacted, or unrecognized fields stay unknown; carrier aggregation may be incomplete."}
 
 
 def demo_model():
