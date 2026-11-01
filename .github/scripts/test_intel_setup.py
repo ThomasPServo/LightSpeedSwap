@@ -57,9 +57,13 @@ def main():
         report = json.loads(subprocess.check_output([str(private_python), '-I', '-c', probe], env=env, text=True))
         assert report['machine'] == 'x86_64' and report['cryptography'] == '50.0.2'
         linked = subprocess.check_output(['/usr/bin/otool', '-L', report['native']], text=True)
+        # otool -L includes LC_ID_DYLIB (the extension's own install name),
+        # which is not an external dependency. Obtain that exact name via -D.
+        identity = subprocess.check_output(['/usr/bin/otool', '-D', report['native']], text=True)
+        own_names = {line.strip() for line in identity.splitlines()[1:]}
         for line in linked.splitlines()[1:]:
             library = line.strip().split(' (', 1)[0]
-            assert library.startswith(('/usr/lib/', '/System/Library/')), linked
+            assert library in own_names or library.startswith(('/usr/lib/', '/System/Library/')), linked
         print(json.dumps(report, indent=2))
         print(linked)
         print('Intel CLI setup passed without compiler or external OpenSSL linkage; no phone accessed.')
