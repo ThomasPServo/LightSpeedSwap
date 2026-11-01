@@ -1,0 +1,30 @@
+// !$*UTF8*$!
+{ archiveVersion = 1; classes = {}; objectVersion = 56; objects = {
+AC5368FE4226D7EFF3E30BCE = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LightSpeedRadio/LightSpeedRadioApp.swift"; sourceTree = "<group>"; };
+3B0A83FD979A2BC61CB5D385 = { isa = PBXBuildFile; fileRef = AC5368FE4226D7EFF3E30BCE; };
+F577910F2BCCE3D3094583B3 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LightSpeedRadio/MonitorStore.swift"; sourceTree = "<group>"; };
+4D2508503F42A9D81C4E6833 = { isa = PBXBuildFile; fileRef = F577910F2BCCE3D3094583B3; };
+9B7CB8C30083728E89C50A05 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LightSpeedRadio/RadioView.swift"; sourceTree = "<group>"; };
+EDAE0CCC3F5B7145603F978E = { isa = PBXBuildFile; fileRef = 9B7CB8C30083728E89C50A05; };
+6B2E97974604228C8D58E99F = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RadioCore/RadioSnapshot.swift"; sourceTree = "<group>"; };
+4C597FD18726061D5E7D032C = { isa = PBXBuildFile; fileRef = 6B2E97974604228C8D58E99F; };
+6D06DB1ABDD3EEF74D19B4D2 = { isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "LightSpeedRadio/RadioProbe.m"; sourceTree = "<group>"; };
+DADA4B4371E71380F128029B = { isa = PBXBuildFile; fileRef = 6D06DB1ABDD3EEF74D19B4D2; };
+004798C447536A7C973E3C3F = { isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "LightSpeedRadio/RadioProbe.h"; sourceTree = "<group>"; };
+15B5A4F3DD3767329C9AB4A5 = { isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "LightSpeedRadio/LightSpeedRadio-Bridging-Header.h"; sourceTree = "<group>"; };
+A42BA59916E4361FCCF9278C = { isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "LightSpeedRadio/Info.plist"; sourceTree = "<group>"; };
+38A007151ABE87CC01A5B6E9 = { isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LightSpeedRadio.app; sourceTree = BUILT_PRODUCTS_DIR; };
+FBDC4F23F93125BBEEAE800C = { isa = PBXGroup; children = (38A007151ABE87CC01A5B6E9,); name = Products; sourceTree = "<group>"; };
+64292B1C2B2E13EAD8788FC8 = { isa = PBXGroup; children = (AC5368FE4226D7EFF3E30BCE,F577910F2BCCE3D3094583B3,9B7CB8C30083728E89C50A05,6B2E97974604228C8D58E99F,6D06DB1ABDD3EEF74D19B4D2,004798C447536A7C973E3C3F,15B5A4F3DD3767329C9AB4A5,A42BA59916E4361FCCF9278C,FBDC4F23F93125BBEEAE800C,); sourceTree = "<group>"; };
+BCE16DD0260827ECF338C787 = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (3B0A83FD979A2BC61CB5D385,4D2508503F42A9D81C4E6833,EDAE0CCC3F5B7145603F978E,4C597FD18726061D5E7D032C,DADA4B4371E71380F128029B,); runOnlyForDeploymentPostprocessing = 0; };
+7561BFB015D8F536760CB671 = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+0189424A5A60FED329FA868E = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+AB52CB08E0FDF02BF6C67C33 = { isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 5.0;}; name = Debug; };
+59E1BEE911F66DA37FEBACDC = { isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = LightSpeedRadio/Info.plist; PRODUCT_BUNDLE_IDENTIFIER = com.thomaspservo.LightSpeedRadio; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_OBJC_BRIDGING_HEADER = "LightSpeedRadio/LightSpeedRadio-Bridging-Header.h"; TARGETED_DEVICE_FAMILY = "1,2"; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SUPPORTS_MACCATALYST = NO; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks"; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; DEBUG_INFORMATION_FORMAT = dwarf;}; name = Debug; };
+5283471FF90C511CFE244FFF = { isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 5.0;}; name = Release; };
+F4C425279CD5DDD18FD6DC6D = { isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = LightSpeedRadio/Info.plist; PRODUCT_BUNDLE_IDENTIFIER = com.thomaspservo.LightSpeedRadio; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_OBJC_BRIDGING_HEADER = "LightSpeedRadio/LightSpeedRadio-Bridging-Header.h"; TARGETED_DEVICE_FAMILY = "1,2"; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SUPPORTS_MACCATALYST = NO; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks"; SWIFT_OPTIMIZATION_LEVEL = "-O"; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";}; name = Release; };
+2286E03CAA13D178968C5C29 = { isa = XCConfigurationList; buildConfigurations = (AB52CB08E0FDF02BF6C67C33,5283471FF90C511CFE244FFF,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+CB723A9A468D5D3A71F5A482 = { isa = XCConfigurationList; buildConfigurations = (59E1BEE911F66DA37FEBACDC,F4C425279CD5DDD18FD6DC6D,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+0E8A3AD980EC179856012B7E = { isa = PBXNativeTarget; buildConfigurationList = CB723A9A468D5D3A71F5A482; buildPhases = (BCE16DD0260827ECF338C787,7561BFB015D8F536760CB671,0189424A5A60FED329FA868E,); buildRules = (); dependencies = (); name = LightSpeedRadio; productName = LightSpeedRadio; productReference = 38A007151ABE87CC01A5B6E9; productType = "com.apple.product-type.application"; };
+98F54143AB4E86B28C3AFEE0 = { isa = PBXProject; attributes = { LastUpgradeCheck = 1600; TargetAttributes = { 0E8A3AD980EC179856012B7E = { CreatedOnToolsVersion = 16.0; }; }; }; buildConfigurationList = 2286E03CAA13D178968C5C29; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en,Base,); mainGroup = 64292B1C2B2E13EAD8788FC8; productRefGroup = FBDC4F23F93125BBEEAE800C; projectDirPath = ""; projectRoot = ""; targets = (0E8A3AD980EC179856012B7E,); };
+}; rootObject = 98F54143AB4E86B28C3AFEE0; }
