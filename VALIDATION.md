@@ -4,8 +4,9 @@ The repository and universal CLI contain the carrier-switching functionality,
 its firmware preparation and signature checks, SIM hygiene, and related diagnostics.
 The separate radio dashboard, native reader, and radio research have been removed.
 The carrier-switching suite contains 113 offline tests. No physical phone was
-connected during this cleanup. GitHub Actions runs the suite on macOS, Windows,
-and Linux; its run status determines which configurations passed.
+connected during this work. All 12 configurations in the
+[GitHub compatibility run](https://github.com/ThomasPServo/LightSpeedSwap/actions/runs/41283236244)
+passed on macOS, Windows, and Linux with Python 3.11–3.14.
 
 ## GitHub firmware preparation
 
@@ -17,10 +18,31 @@ mismatched pairs, safe output handling, mount-failure retention, checksums, and
 round-trip import through the existing CLI payload code. Large images are mocked
 in those tests; the carrier files and signature verification are real.
 
-These tests do not establish actual network/decryption/mount behavior on the
-runner. A successful preparation run and its artifact receipt supply that
-separate evidence for the requested identity. They do not establish on-device
-activation or automatic support for unknown future firmware formats.
+The separate [live preparation run](https://github.com/ThomasPServo/LightSpeedSwap/actions/runs/41283236191)
+at commit `696ca6d4010d2a92f78c83ed6e02ef229ce34d75` completed successfully on
+2026-11-01 for **iPhone19,2 / V63AP / iOS 27.2 / 24B119**. It took about 19 minutes
+on a GitHub-hosted macOS 26 ARM64 runner. This was a fresh Apple download, AEA
+decryption, read-only filesystem mount/extraction, signature check, successful
+unmount, and image cleanup. The runner already had 95.9 GiB free, so its space
+check did not need to remove Xcode.
+
+- Filesystem: `141-68953-104.dmg.aea`, 9,529,458,688 bytes, CRC32 `20fba432`.
+- Filesystem SHA-256: `7d9e3aa60fc241567578ffd66e4c741b91b8a1aa916ca8b17232279a5ab4b143`.
+- Pack: `LightSpeedSwap-iPhone19-2-v63ap-27.2-24B119.carrierpack`, 198,566 bytes.
+- Pack SHA-256: `767395064472875b66f191ea8c2cc74bc12fd4017fa0cdfb5434a9c9d834cfad`.
+- Artifact ZIP: 202,637 bytes; SHA-256
+  `e86a2424f692ceeaa6f6fa78cf9b6874c868b7582a198aee0ea57b005d7fbe65`.
+
+The artifact was downloaded independently and checked against GitHub's artifact
+digest and its internal checksums. It contained exactly the pack, provenance,
+and checksum files. Both carrier bundles are version 73.0, all six signature
+groups verified again, and their file bytes matched the previously verified
+included files. Import through the existing payload code succeeded on Linux
+without a phone. The image hash also matched the earlier independent download.
+
+This establishes preparation and host import for that identity, not new physical
+activation evidence or automatic support for unknown future firmware formats.
+Generated artifacts expire after 14 days; no full image was uploaded or committed.
 
 ## Actual firmware coverage
 
@@ -102,8 +124,9 @@ closed/disconnected. Automatic carrier OTA precedence is not guaranteed.
 
 The user's earlier physical confirmation applies to the earlier prefix-selector
 release, not the newly narrowed selector, migration, automated reboot, or future
-models. These changes need physical confirmation. Filesystem extraction/mount
-on a Mac and cross-carrier cellular service also need on-device/on-host testing.
+models. These changes and cross-carrier cellular service still need physical
+confirmation. The GitHub run above establishes macOS extraction/mount for its
+one requested identity; it does not test every future image or host.
 
 ## Dependencies and sources
 

@@ -133,8 +133,8 @@ image/manifest/file hashes and the workflow commit. It uploads no IPSW, decrypte
 image, or device identifiers, and does not add generated packs to git. Artifacts
 expire after 14 days, so keep your downloaded pack if you need it later.
 
-The standard Mac runner reclaims unused preinstalled Xcode applications to make
-temporary room. That cleanup script refuses to run outside GitHub-hosted macOS
+The Mac runner checks free space and, if needed, reclaims unused preinstalled
+Xcode applications to make temporary room. That cleanup script refuses to run outside GitHub-hosted macOS
 jobs. Extraction stops before downloading if insufficient space remains; unusually
 large future images can need more space. Unknown formats or failed validation
 produce no artifact. Prepared packs establish file compatibility, not successful
