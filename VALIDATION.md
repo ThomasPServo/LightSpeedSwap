@@ -4,9 +4,25 @@ The repository and universal CLI contain the carrier-switching functionality,
 its firmware preparation and signature checks, SIM hygiene, and related diagnostics.
 The separate radio dashboard, native reader, and radio research have been removed.
 The carrier-switching suite contains 125 offline tests. No physical phone was
-connected during this work. All 12 configurations in the
+connected to the automated test hosts. All 12 configurations in the
 [GitHub compatibility run](https://github.com/ThomasPServo/LightSpeedSwap/actions/runs/41316884588)
 passed on macOS, Windows, and Linux with Python 3.11–3.14.
+
+## Physical SA and UC confirmation
+
+On 2026-11-01, the project owner confirmed that **5G Standalone (SA) and the
+5G UC indicator were tested and are working on an iPhone 18 Pro, US model**,
+with US Mobile Light Speed. This is a positive physical-device report, separate
+from the offline tests and firmware configuration inspection below.
+
+The earlier session also confirmed switching in both directions on
+`iPhone19,2 / V63AP / iOS 27.2 / 24B119`, with a reboot needed. The new SA/UC
+report does not separately specify its CLI revision, firmware build, or radio
+test procedure, and no modem trace was supplied for independent analysis.
+It establishes a known-working owner-reported result, not all-model coverage,
+a measured priority/speed change, or validation of eSIM replacement and legacy
+migration. The CLI itself checks the active bundle; it does not measure SA,
+connected bands, QCI, or 5QI.
 
 ## Local Windows and Linux preparation
 
@@ -178,10 +194,11 @@ receipt, full-SIM selector, migration, or `revert` deletes all carrier files or
 restores exact pre-run filesystem state. It cannot refresh an override while
 closed/disconnected. Automatic carrier OTA precedence is not guaranteed.
 
-The user's earlier physical confirmation applies to the earlier prefix-selector
-release, not the newly narrowed selector, migration, automated reboot, or future
-models. These changes and cross-carrier cellular service still need physical
-confirmation. The firmware runs above establish extraction on their listed
+The earlier bidirectional-switch report applies to the prefix-selector release.
+The later SA/UC confirmation is recorded above without assuming a CLI revision.
+Physical tests of the narrowed selector's isolation, migration, eSIM replacement,
+automated reboot, and cross-carrier service remain separate coverage gaps.
+The firmware runs above establish extraction on their listed
 hosts for the requested identity; they do not test every future image or phone.
 
 ## Dependencies and sources

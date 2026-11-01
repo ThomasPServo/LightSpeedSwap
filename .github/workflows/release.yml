@@ -1,0 +1,98 @@
+name: Publish release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/release-request.json']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lightspeedswap-release
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.repository == 'ThomasPServo/LightSpeedSwap' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.request.outputs.version }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Rebuild the exact committed CLI
+        run: |
+          python build_cli.py
+          git diff --exit-code -- dist/
+      - name: Validate version, checksum, and release notes
+        id: request
+        run: |
+          python - <<'PY'
+          import ast
+          import hashlib
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          request = json.loads(Path('.github/release-request.json').read_text())
+          version = request['version']
+          if not isinstance(version, str) or not re.fullmatch(r'\d+\.\d+\.\d+', version):
+              raise SystemExit('Release version must be a numeric major.minor.patch.')
+          constants = {
+              node.targets[0].id: ast.literal_eval(node.value)
+              for node in ast.parse(Path('carrier_switch.py').read_text()).body
+              if isinstance(node, ast.Assign) and len(node.targets) == 1
+              and isinstance(node.targets[0], ast.Name) and node.targets[0].id == 'RELEASE'
+          }
+          if constants.get('RELEASE') != f'LightSpeedSwap {version}':
+              raise SystemExit('Release version differs from the application.')
+          digest = hashlib.sha256(Path('dist/LightSpeedSwap.pyz').read_bytes()).hexdigest()
+          if digest != request['sha256']:
+              raise SystemExit('Release request checksum differs from the CLI.')
+          if Path('dist/SHA256SUMS.txt').read_text() != f'{digest}  LightSpeedSwap.pyz\n':
+              raise SystemExit('Checksum file differs from the CLI.')
+          if not Path('RELEASE_NOTES.md').read_text().startswith(f'# LightSpeedSwap {version}\n'):
+              raise SystemExit('Release notes must describe the requested version.')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as out:
+              out.write(f'version={version}\n')
+          print(f'Verified LightSpeedSwap {version}: {digest}')
+          PY
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Publish the verified CLI and checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.verify.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="v${RELEASE_VERSION}"
+          # Creation fails if a release already exists; no overwrite or clobber.
+          gh release create "$tag" dist/LightSpeedSwap.pyz dist/SHA256SUMS.txt \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "LightSpeedSwap ${RELEASE_VERSION}" \
+            --notes-file RELEASE_NOTES.md --draft
+          # Verify the uploaded bytes before the release becomes public.
+          check_dir="$(mktemp -d "$RUNNER_TEMP/lightspeedswap-release.XXXXXX")"
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
+            --pattern LightSpeedSwap.pyz --pattern SHA256SUMS.txt --dir "$check_dir"
+          cmp dist/LightSpeedSwap.pyz "$check_dir/LightSpeedSwap.pyz"
+          cmp dist/SHA256SUMS.txt "$check_dir/SHA256SUMS.txt"
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --latest

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/lightspeedswap-logo.png" alt="LightSpeedSwap" width="620">
+</p>
+
 # LightSpeedSwap
 
 A compact Python CLI for switching **TMobile_MVNO_US ↔ TMobile_Wholesale_US**
@@ -5,16 +9,30 @@ on an eligible iPhone running **iOS 27 or later**. It detects the active bundle,
 uses original Apple-signed files for the exact firmware, installs once, restarts
 once, and verifies the selected SIM afterward.
 
+For **US Mobile Light Speed**, the Wholesale bundle enables the carrier settings
+used for **5G Standalone (SA)** and the **5G UC indicator**. **SA and UC have been
+tested and confirmed working by the project owner on an iPhone 18 Pro, US model.**
+This is a known-working device report; other models, firmware, SIM provisioning,
+and coverage can produce different results. A UC icon alone does not prove SA
+or a change in network priority. See [the test evidence](VALIDATION.md#physical-sa-and-uc-confirmation).
+
 **No backup, restore, OS downgrade, or Find My change.** `--skip-backup` remains
 accepted for compatibility; every command always skips backups.
 
+CarrierSIM reports its AirTraffic method blocked beginning with iOS 27.2 beta 3
+(24B5099f). LightSpeedSwap uses a separate paired IPCC installation route with
+the original signed carrier files. It does not modify the signed settings.
+
 ## Download and run
 
-Download [LightSpeedSwap.pyz](https://github.com/ThomasPServo/LightSpeedSwap/raw/refs/heads/main/dist/LightSpeedSwap.pyz).
+Download [LightSpeedSwap.pyz from the latest release](https://github.com/ThomasPServo/LightSpeedSwap/releases/latest/download/LightSpeedSwap.pyz)
+and its [SHA256SUMS.txt](https://github.com/ThomasPServo/LightSpeedSwap/releases/latest/download/SHA256SUMS.txt).
+The [release page](https://github.com/ThomasPServo/LightSpeedSwap/releases/latest)
+includes the release notes and source archives.
 This is a universal **Python zipapp**, not a native standalone executable.
 Python 3.9+ starts it; explicit one-time setup prepares a private Python 3.11+
 runtime with the tested dependencies. Python and dependencies are not embedded
-in the small app download. Check [SHA256SUMS.txt](dist/SHA256SUMS.txt) if desired.
+in the small app download.
 
 On macOS/Linux:
 
@@ -196,7 +214,10 @@ described above.
 See [VALIDATION.md](VALIDATION.md) for actual firmware and host test coverage.
 The user's physical confirmation covers both directions on
 **iPhone19,2 / V63AP / iOS 27.2 / 24B119**, with reboot needed to refresh remaining
-settings. Other phone/build combinations are experimental until physically tested.
+settings. The owner also confirms **SA and the UC indicator working on a US
+iPhone 18 Pro**. The SA/UC report does not separately identify the CLI revision
+or test method; the detailed validation record preserves that scope. Other
+phone/build combinations are experimental until physically tested.
 
 Future versions with the supported formats can be prepared without changing a
 model/build list. Changed signature keys, unknown signing formats, missing carrier
@@ -330,6 +351,13 @@ The build produces only `dist/LightSpeedSwap.pyz` and its checksum. Its stored
 outer ZIP members make the output reproducible across Python/zlib versions;
 the carrier pack inside is already compressed. Tests never access a phone.
 CI covers Python 3.11–3.14 on Linux, macOS, and Windows.
+
+Release publishing is separate from firmware preparation. The
+[`Publish release`](.github/workflows/release.yml) workflow validates the version
+and SHA-256 in [`.github/release-request.json`](.github/release-request.json),
+rebuilds the CLI byte-for-byte, and publishes only the CLI and its checksum as
+release assets. Update the request and `RELEASE_NOTES.md` for a new version.
+Existing releases are never overwritten automatically.
 
 Dependencies: [pymobiledevice3](https://github.com/doronz88/pymobiledevice3),
 [cryptography](https://github.com/pyca/cryptography), and optional
