@@ -4,6 +4,9 @@
 
 # LightSpeedSwap
 
+
+**Important note: You can switch the same eSIM back to MVNO without replacing it. What I should’ve made clearer is that revert leaves LightSpeedSwap’s SIM-specific matching rule on the phone. Even after you switch back, iOS may keep using the older settings installed by LightSpeedSwap when Apple ships a newer carrier bundle. I’ve tested switching to Wholesale and back on my iPhone. I haven’t verified which bundle wins on a real phone after an iOS or carrier settings update. If you use LightSpeedSwap, be prepared to refresh the bundle manually. After an update, run status and check both the bundle name and its version. Seeing “MVNO” or “Wholesale” alone won’t tell you whether you’re up to date.**
+
 A compact Python CLI for switching **TMobile_MVNO_US ↔ TMobile_Wholesale_US**
 on an eligible iPhone running **iOS 27 or later**. It detects the active bundle,
 uses original Apple-signed files for the exact firmware, installs once, restarts
