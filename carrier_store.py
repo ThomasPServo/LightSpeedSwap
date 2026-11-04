@@ -144,12 +144,16 @@ def lock(path):
         marker.unlink()
 
 
-def put(path, entry, incoming_objects):
+def put(path, entry, incoming_objects, validate_existing=None):
     """Atomic merge; evict oldest prepared entries, preserve the new entry."""
     path = Path(path)
     key = entry_key(entry['device'])
     with lock(path):
         entries, objects = read(path) if path.exists() else ({}, {})
+        # A payload upgrade must compare against the current entry while holding
+        # the writer lock, not a snapshot taken before a long firmware download.
+        if validate_existing is not None and key in entries:
+            validate_existing(entries[key], objects)
         entry = dict(entry, sequence=max((e['sequence'] for e in entries.values()), default=0) + 1)
         entries[key] = entry
         objects.update(incoming_objects)
