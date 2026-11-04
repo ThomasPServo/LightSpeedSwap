@@ -48,6 +48,15 @@ class PayloadContracts(unittest.TestCase):
             with self.subTest(fields=fields), self.assertRaises(ValueError):
                 p.validate_manifest(manifest(state(**fields)), s)
 
+    def test_manifest_accepts_developer_seed_variants(self):
+        s = state(version='27.3', build='24C5037i')
+        for variant in ('Developer Erase Install (IPSW)', 'Developer Upgrade Install (IPSW)',
+                        'Research Developer Erase Install (IPSW)', 'Research Developer Upgrade Install (IPSW)'):
+            with self.subTest(variant=variant):
+                m = manifest(s)
+                m['BuildIdentities'][0]['Info']['Variant'] = variant
+                self.assertEqual(p.validate_manifest(m, s), 'example.dmg.aea')
+
     def test_manifest_with_ambiguous_image_rejected(self):
         s = state()
         value = manifest(s)

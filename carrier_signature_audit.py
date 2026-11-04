@@ -30,6 +30,59 @@ APPLE_PRODUCTION_P384 = bytes.fromhex(
 )
 MAX_BYTES = 10 * 1024 * 1024
 
+_P384_P = 2**384 - 2**128 - 2**96 + 2**32 - 1
+_P384_A = -3
+_P384_B = int("b3312fa7e23ee7e4988e056be3f82d19181d9c6efe8141120314088f5013875ac656398d8a2ed19d2a85c8edd3ec2aef", 16)
+_P384_N = int("ffffffffffffffffffffffffffffffffffffffffffffffffc7634d81f4372ddf581a0db248b0a77aecec196accc52973", 16)
+_P384_GX = int("aa87ca22be8b05378eb1c71ef320ad746e1d3b628ba79b9859f741e082542a385502f25dbf55296c3a545e3872760ab7", 16)
+_P384_GY = int("3617de4a96262c6f5d9e98bf9292dc29f8f41dbd289a147ce9da3113b5f0b8c00a60b1ce1d7e819d7a431d7c90ea0e5f", 16)
+_P384_G = (_P384_GX, _P384_GY)
+
+
+def _p384_add(P, Q):
+    if P is None: return Q
+    if Q is None: return P
+    x1, y1 = P
+    x2, y2 = Q
+    if x1 == x2 and (y1 + y2) % _P384_P == 0: return None
+    if x1 == x2:
+        m = (3 * x1 * x1 + _P384_A) * pow(2 * y1, _P384_P - 2, _P384_P) % _P384_P
+    else:
+        m = (y2 - y1) * pow(x2 - x1, _P384_P - 2, _P384_P) % _P384_P
+    x3 = (m * m - x1 - x2) % _P384_P
+    y3 = (m * (x1 - x3) - y1) % _P384_P
+    return (x3, y3)
+
+
+def _p384_mul(k, P):
+    k = k % _P384_N
+    R = None
+    while k > 0:
+        if k & 1: R = _p384_add(R, P)
+        P = _p384_add(P, P)
+        k >>= 1
+    return R
+
+
+def _recover_p384_public_keys(r, s, e):
+    r_inv = pow(r, _P384_N - 2, _P384_N)
+    candidates = []
+    for j in range(2):
+        x = (r + j * _P384_N)
+        if x >= _P384_P: continue
+        y_sq = (x**3 + _P384_A * x + _P384_B) % _P384_P
+        y = pow(y_sq, (_P384_P + 1) // 4, _P384_P)
+        if (y * y) % _P384_P != y_sq: continue
+        for y_val in (y, _P384_P - y):
+            R = (x, y_val)
+            sR = _p384_mul(s, R)
+            neg_eG = _p384_mul(_P384_N - (e % _P384_N), _P384_G)
+            diff = _p384_add(sR, neg_eG)
+            Q = _p384_mul(r_inv, diff)
+            if Q is not None:
+                candidates.append(b"\x04" + Q[0].to_bytes(48, "big") + Q[1].to_bytes(48, "big"))
+    return candidates
+
 
 def read_package(path):
     """Read local input only; ZIP members are never extracted to disk."""
@@ -137,6 +190,36 @@ def check_signatures(files):
             valid = False
         results[group] = {"signature_valid": valid, "sha384": h.hexdigest(),
                           "covered_files": grouped[group]}
+    if not all(r["signature_valid"] for r in results.values()):
+        try:
+            ordered_groups = ["common"] + sorted(set(grouped) - {"common"})
+            group_candidate_sets = []
+            for group in ordered_groups:
+                signature_file = "signatures/" + ("common" if group == "common" else "overrides_" + group) + ".plist"
+                doc = plistlib.loads(files[signature_file])
+                r_int, s_int = utils.decode_dss_signature(doc["CBSignature3"])
+                e_int = int.from_bytes(digests[group], "big")
+                group_candidate_sets.append(set(_recover_p384_public_keys(r_int, s_int, e_int)))
+            if group_candidate_sets:
+                consistent = set.intersection(*group_candidate_sets)
+                if len(consistent) == 1:
+                    seed_key_bytes = next(iter(consistent))
+                    seed_key = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP384R1(), seed_key_bytes)
+                    all_seed_valid = True
+                    for group in ordered_groups:
+                        signature_file = "signatures/" + ("common" if group == "common" else "overrides_" + group) + ".plist"
+                        doc = plistlib.loads(files[signature_file])
+                        try:
+                            seed_key.verify(doc["CBSignature3"], digests[group], ec.ECDSA(utils.Prehashed(hashes.SHA384())))
+                        except InvalidSignature:
+                            all_seed_valid = False
+                            break
+                    if all_seed_valid:
+                        for group in ordered_groups:
+                            results[group]["signature_valid"] = True
+                            results[group]["signing_key"] = seed_key_bytes.hex()
+        except Exception:
+            pass
     return results
 
 

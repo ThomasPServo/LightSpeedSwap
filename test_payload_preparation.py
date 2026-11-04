@@ -102,6 +102,50 @@ class PreparationStorageContracts(unittest.TestCase):
             self.assertTrue((dirs[0] / 'example.dmg').exists())
             self.assertFalse(p.cache_path(tmp).exists())
 
+    def test_validation_error_preserves_image_and_retry_reuses_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            download_count = 0
+            def count_download(self, name, path, resume_dir=None):
+                nonlocal download_count
+                download_count += 1
+                path.write_bytes(b'encrypted fixture')
+            st = state()
+            manifest_bytes = plistlib.dumps(manifest(st))
+            bundles = {t: c.load_files(t) for t in c.TARGETS}
+            class CustomFirmware:
+                def __init__(self, url): pass
+                def __enter__(self): return self
+                def __exit__(self, *_): pass
+                def manifest(self): return manifest_bytes
+                download_image = count_download
+            def fake_cmd(args, **kwargs):
+                Path(args[3]).with_suffix('').write_bytes(b'decrypted fixture')
+            attempts = 0
+            def flaky_extract(image, work):
+                nonlocal attempts
+                attempts += 1
+                if attempts == 1:
+                    raise ValueError('carrier signature verification failure')
+                return bundles
+            with patch.object(p.platform, 'system', return_value='Darwin'), \
+                 patch.object(p, 'ensure_ipsw', return_value=Path('/fake/ipsw')), \
+                 patch.object(p.shutil, 'disk_usage', return_value=SimpleNamespace(free=30 * 1024**3)), \
+                 patch('carrier_remote.RemoteFirmware', CustomFirmware), \
+                 patch.object(p, 'command', side_effect=fake_cmd), \
+                 patch.object(p, 'extract_macos', side_effect=flaky_extract), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                # First run fails during extraction / signature validation
+                with self.assertRaisesRegex(ValueError, 'signature verification failure'):
+                    p.setup_device(tmp, st, url='https://updates.cdn-apple.com/example.ipsw')
+                self.assertEqual(download_count, 1)
+                cached_images = Path(tmp) / '.carrier-cache' / 'images'
+                self.assertTrue((cached_images / 'example.dmg').exists())
+
+                # Second run reuses the cached decrypted image without calling download_image again
+                p.setup_device(tmp, st, url='https://updates.cdn-apple.com/example.ipsw')
+                self.assertEqual(download_count, 1)
+                self.assertTrue(p.cache_path(tmp).exists())
+
 
     def test_interrupted_setup_keeps_checkpoint_but_cleans_expanded_image_then_resumes(self):
         st = state()
