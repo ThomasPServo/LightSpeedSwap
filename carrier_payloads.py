@@ -101,7 +101,10 @@ def validate_files(target, files):
     ensure(re.fullmatch(r'[0-9]+(?:\.[0-9]+){0,3}', str(info.get('CFBundleVersion', ''))),
            "Missing carrier bundle version.")
     signatures = check_signatures(files)
-    ensure(all(v['signature_valid'] for v in signatures.values()), "An Apple carrier signature failed verification.")
+    failed = [k for k, v in signatures.items() if not v['signature_valid']]
+    if failed:
+        detail = ', '.join(f"{k} (files: {signatures[k]['covered_files']})" for k in failed)
+        ensure(False, f"An Apple carrier signature failed verification ({target}: failed groups: {detail}). Files present: {sorted(files.keys())}")
     return info, signatures
 
 
