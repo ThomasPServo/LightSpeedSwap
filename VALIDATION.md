@@ -1,3 +1,37 @@
+## Unreleased beta firmware discovery and manifest handling
+
+On 2026-11-04, live IPSW.me lookup had no exact entry for iPhone18,2 / iOS 27.3 /
+24C5037i. The new AppleDB fallback resolved the HTTPS Apple IPSW below, filtering
+the HTTP mirror that AppleDB adds to its published API:
+
+https://updates.cdn-apple.com/2026FallSeed/7b4dad3a-c3aa-4e0f-9e1b-911d7b53867f/iPhone18,2_27.3_24C5037i_Restore.ipsw
+
+The existing bounded range reader retrieved `BuildManifest.plist` directly from
+that Apple archive (817,084 bytes; SHA-256
+`4920ce46a3239ea291ab065d5ad5c41b2e4ff08f5c9391e85aaf578c080d8f89`).
+It declares ProductVersion `27.3`, ProductBuildVersion `24C5037i`, and
+SupportedProductTypes `[iPhone18,2]`. The V54AP identities contain Developer
+Erase/Upgrade IPSW variants and a separate Recovery Customer Install variant.
+The new validator selects the unique OS image `141-93003-026.dmg.aea` from the
+Developer identities; the previous Customer-only validator cannot select it.
+
+All 156 offline tests passed on Linux / Python 3.12. Coverage includes exact
+product/build/version/board matching, beta/RC display labels, HTTP mirror
+exclusion, index outages, ambiguity, invalid metadata, and failure before cache
+creation. A separate test signs every payload group with a generated non-Apple
+P-384 key and confirms those internally consistent signatures are rejected.
+`doctor` verifies all seven included entries, `pip check` passes, and the rebuilt
+CLI reports its version. Cross-platform CI remains the responsibility of the
+PR/release workflow.
+
+This validates discovery and the actual Apple manifest, not the beta carrier
+payloads or physical switching. No full filesystem image was downloaded and no
+phone was accessed. Unknown beta signing keys still fail closed. The production
+Apple trust anchor and signature verifier are unchanged; a key derived from the
+untrusted signatures themselves must not be accepted as an Apple trust anchor.
+Full beta signing support requires an independently verified Apple key and
+actual carrier payload validation. The published v0.7.3 asset is unchanged.
+
 ## 0.7.3 slow-download and resume regression coverage
 
 All 139 local offline tests passed on the development Linux/Python 3.12 host.

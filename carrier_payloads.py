@@ -101,7 +101,10 @@ def validate_files(target, files):
     ensure(re.fullmatch(r'[0-9]+(?:\.[0-9]+){0,3}', str(info.get('CFBundleVersion', ''))),
            "Missing carrier bundle version.")
     signatures = check_signatures(files)
-    ensure(all(v['signature_valid'] for v in signatures.values()), "An Apple carrier signature failed verification.")
+    ensure(all(v['signature_valid'] for v in signatures.values()),
+           "An Apple carrier signature failed verification. "
+           "The bundle may be changed or use an unsupported signing key (including a beta key). "
+           "An independently verified Apple key is required; do not bypass this check.")
     return info, signatures
 
 
@@ -166,7 +169,9 @@ def validate_manifest(manifest, state):
         if (info['DeviceClass'].lower() != expected['hardware']
                 or candidate.get('Ap,ProductType', expected['product']) != expected['product']):
             continue
-        if info.get('Variant') not in {'Customer Erase Install (IPSW)', 'Customer Upgrade Install (IPSW)'}:
+        if info.get('Variant') not in {
+                'Customer Erase Install (IPSW)', 'Customer Upgrade Install (IPSW)',
+                'Developer Erase Install (IPSW)', 'Developer Upgrade Install (IPSW)'}:
             continue
         component = candidate.get('Manifest')
         for part in ('OS', 'Info'):
@@ -176,7 +181,7 @@ def validate_manifest(manifest, state):
                'Unsupported BuildManifest filesystem path.')
         paths.add(component['Path'])
     ensure(len(paths) == 1 and '' not in paths,
-           'Cannot identify exactly one supported Customer IPSW filesystem image for this hardware. '
+           'Cannot identify exactly one supported Customer or Developer IPSW filesystem image for this hardware. '
            'A changed firmware format requires an app update.')
     name = next(iter(paths))
     ensure(re.fullmatch(r'[A-Za-z0-9_-]+\.dmg(?:\.aea)?', name), "Unexpected filesystem image path.")
@@ -243,14 +248,86 @@ def get_bytes(url, limit):
     return data
 
 
+def appledb_urls(result, ident):
+    """Read discovery metadata only; the Apple manifest/signatures remain authoritative."""
+    ensure(isinstance(result, dict), 'Unsupported AppleDB build record.')
+    version = result.get('version')
+    # AppleDB uses display labels (e.g. "27.3 beta"), unlike lockdown's "27.3".
+    # Only known channel suffixes may be removed; never match a version prefix.
+    match = re.fullmatch(r'([0-9]+(?:\.[0-9]+){0,3})(?: (?:beta|RC)(?: [0-9]+)?)?',
+                         version) if isinstance(version, str) else None
+    ensure(result.get('osStr') == 'iOS' and result.get('build') == ident['build']
+           and match is not None and match.group(1) == ident['version'],
+           'AppleDB record does not match the exact iOS version/build.')
+    sources = result.get('sources')
+    ensure(isinstance(sources, list), 'Unsupported AppleDB sources.')
+    urls = set()
+    for source in sources:
+        ensure(isinstance(source, dict), 'Unsupported AppleDB source.')
+        if source.get('type') != 'ipsw':
+            continue
+        devices = source.get('deviceMap')
+        ensure(isinstance(devices, list) and all(isinstance(v, str) for v in devices),
+               'Unsupported AppleDB device list.')
+        if ident['product'] not in devices:
+            continue
+        boards = source.get('boardMap')
+        if boards is not None:
+            ensure(isinstance(boards, list) and all(isinstance(v, str) for v in boards),
+                   'Unsupported AppleDB board list.')
+            if ident['hardware'] not in {v.lower() for v in boards}:
+                continue
+        links = source.get('links')
+        ensure(isinstance(links, list), 'Unsupported AppleDB links.')
+        for link in links:
+            ensure(isinstance(link, dict), 'Unsupported AppleDB link.')
+            if link.get('active') is True:
+                ensure(isinstance(link.get('url'), str), 'Unsupported AppleDB download URL.')
+                # The published API adds HTTP mirrors alongside HTTPS originals.
+                # Ignore them; do not rewrite or fetch an insecure mirror URL.
+                if urllib.parse.urlsplit(link['url']).scheme == 'http':
+                    continue
+                urls.add(apple_url(link['url']))
+    return urls
+
+
 def firmware_url(state):
     ident = identity(state)
+    recovery = (f"No unique exact-build IPSW for {ident['product']} / iOS {ident['version']} / "
+                f"{ident['build']}. Supply --firmware-url with the official Apple IPSW URL "
+                "for this exact model/build. Firmware lookup does not establish beta signing support.")
     # Public model/build only. Never includes UDID, SIM identifiers or GID1.
-    result = json.loads(get_bytes('https://api.ipsw.me/v4/device/' + ident['product'] + '?type=ipsw', 16 * 1024 * 1024))
-    urls = {v['url'] for v in result.get('firmwares', [])
-            if v.get('buildid') == state.build and v.get('version') == state.version}
-    ensure(len(urls) == 1, "The firmware index has no unique exact-build image. Supply --firmware-url with its official Apple IPSW URL.")
-    return apple_url(next(iter(urls)))
+    try:
+        result = json.loads(get_bytes('https://api.ipsw.me/v4/device/' + ident['product'] + '?type=ipsw',
+                                      16 * 1024 * 1024))
+        ensure(isinstance(result, dict) and isinstance(result.get('firmwares'), list),
+               'Unsupported IPSW.me firmware index.')
+        ensure(result.get('identifier', ident['product']) == ident['product'],
+               'IPSW.me returned a different device.')
+        urls = set()
+        for item in result['firmwares']:
+            ensure(isinstance(item, dict), 'Unsupported IPSW.me firmware record.')
+            if item.get('buildid') == ident['build'] and item.get('version') == ident['version']:
+                ensure(isinstance(item.get('url'), str), 'Unsupported IPSW.me download URL.')
+                urls.add(apple_url(item['url']))
+    except (OSError, ValueError) as error:
+        # Index outages and missing beta metadata must not require a manual URL.
+        primary_problem = 'IPSW.me lookup failed: ' + str(error)
+        urls = set()
+    else:
+        primary_problem = 'IPSW.me has no exact-build entry.'
+    ensure(len(urls) <= 1, 'IPSW.me returned multiple exact-build images. ' + recovery)
+    if urls:
+        return next(iter(urls))
+    try:
+        result = json.loads(get_bytes('https://api.appledb.dev/ios/iOS;' + ident['build'] + '.json',
+                                      4 * 1024 * 1024))
+        urls = appledb_urls(result, ident)
+    except (OSError, ValueError) as error:
+        raise ValueError(recovery + ' ' + primary_problem + ' AppleDB lookup failed: ' + str(error)) from error
+    ensure(len(urls) == 1, recovery + ' ' + primary_problem +
+           f' AppleDB returned {len(urls)} matching active IPSW URLs.')
+    return next(iter(urls))
 
 
 def ensure_ipsw(root):

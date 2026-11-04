@@ -105,16 +105,29 @@ The existing `bash Setup.command` and `bash Run.command ...` launchers also work
 
 There is no fixed phone-model or firmware-build allowlist. `setup-device` checks
 the connected product, hardware board, iOS version, and build, then retrieves
-that exact firmware's carrier pair. An absent beta/RC index entry can use:
+that exact firmware's carrier pair. Automatic lookup tries IPSW.me first, then
+the exact-build [AppleDB record](https://github.com/littlebyteorg/appledb/blob/main/API.md)
+when the first index is unavailable or has no match, including beta/RC builds.
+Only one active Apple-hosted IPSW for the exact product/build is accepted;
+OTA files, other models, and ambiguous matches are not substituted. If neither
+index has the image, an explicit URL can still be supplied:
 
 ```sh
 python3 LightSpeedSwap.pyz setup-device --firmware-url '<official Apple HTTPS IPSW URL>'
 ```
 
-The manifest must match all four identity fields. The normal Customer IPSW OS
-image is selected; Recovery and unknown install variants are not substituted.
+The manifest must match all four identity fields. Customer and Developer IPSW
+erase/upgrade OS images are recognized; Research, Recovery, and unknown install
+variants are not substituted.
 Original carrier signatures and applicable board overrides must verify.
 Signed files are never edited to make a package pass verification.
+
+**Finding a beta IPSW does not establish full beta support.** Some beta carrier
+bundles may use a signing key this version does not recognize. Those bundles
+still stop at signature verification until an Apple key is independently
+verified and supported. Deriving a key from the supplied bundle's signatures
+does not prove Apple signed it. There is no signature-bypass option. These lookup
+and manifest changes have not established physical switching on iOS 27.3 beta.
 
 Prepared payloads occupy **one compressed, deduplicated cache**, capped at
 **8 MiB and eight exact model/build entries**. An entry contains both directions.
@@ -379,7 +392,8 @@ redacted trace; review it before sharing. No reports are uploaded. Full IMSI,
 ICCID, and UDID are never uploaded. Full IMSI/ICCID appear in the private selector
 package and its on-phone directory name, and may appear in device logs; do not
 share that IPCC. Host restoration receipts contain only keyed fingerprints.
-Firmware lookup sends only the public product model to IPSW.me.
+Firmware lookup sends only the public product model to IPSW.me and, on fallback,
+the public iOS build number to AppleDB. Neither receives SIM or device identifiers.
 
 Exit codes: `0` success/already active; `2` prerequisite/error; `3` activation or
 reboot unconfirmed; `4` manual reboot required; `124` hard deadline; `130` interrupted.
