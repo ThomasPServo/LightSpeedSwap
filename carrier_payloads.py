@@ -364,23 +364,46 @@ def setup_device(root, state, url=None, bundle_pack=None):
     tool = ensure_firmware_tools(root)
     parent = data_root(root) / '.carrier-cache'
     parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    images_dir = parent / 'images'
+    images_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     work = Path(tempfile.mkdtemp(prefix='.firmware-', dir=parent))
     print('Preparing original files for ' + state.product + ' / iOS ' + state.version + ' / ' + state.build, flush=True)
-    print('One-time firmware download: several GB. No backup, restore or phone write. Later switches use the small cached bundles.', flush=True)
     try:
         from carrier_remote import RemoteFirmware
         with RemoteFirmware(url) as archive:
             manifest_bytes = archive.manifest()
             image_name = validate_manifest(plistlib.loads(manifest_bytes), state)
-            image = work / image_name
-            archive.download_image(image_name, image, resume_dir=parent)
-        if image.suffix == '.aea':
-            command([tool, 'fw', 'aea', image, '--output', image.parent])
-            image = image.with_suffix('')
-            ensure(image.is_file(), 'Decrypted firmware image was not produced.')
-            image.with_suffix(image.suffix + '.aea').unlink()
+            decrypted_name = image_name[:-4] if image_name.endswith('.aea') else image_name
+            cached_decrypted = images_dir / decrypted_name
+            cached_raw = images_dir / image_name
+
+            if cached_decrypted.is_file() and cached_decrypted.stat().st_size > 0:
+                print('Using cached decrypted firmware image: ' + cached_decrypted.name, flush=True)
+                image = cached_decrypted
+            else:
+                member = archive.member(image_name, 64 * 1024**3) if hasattr(archive, 'member') else None
+                expected_size = member.file_size if member else None
+                if cached_raw.is_file() and cached_raw.stat().st_size > 0 and (expected_size is None or cached_raw.stat().st_size == expected_size):
+                    print('Using cached firmware download: ' + cached_raw.name, flush=True)
+                    raw_image = cached_raw
+                else:
+                    cached_raw.unlink(missing_ok=True)
+                    print('One-time firmware download: several GB. No backup, restore or phone write. Later switches use the small cached bundles.', flush=True)
+                    archive.download_image(image_name, cached_raw, resume_dir=parent)
+                    raw_image = cached_raw
+
+                if image_name.endswith('.aea'):
+                    print('Decrypting firmware image...', flush=True)
+                    command([tool, 'fw', 'aea', raw_image, '--output', images_dir])
+                    image = cached_decrypted
+                    ensure(image.is_file() and image.stat().st_size > 0, 'Decrypted firmware image was not produced.')
+                    cached_raw.unlink(missing_ok=True)
+                else:
+                    image = raw_image
+
         bundles = extract_files(image, work, root)
         destination = save_payload(root, state, manifest_bytes, url, bundles)
+        shutil.rmtree(images_dir, ignore_errors=True)
         print('Verified both original Apple-signed bundles and cached them in one compressed store. Ready to switch.', flush=True)
         return destination
     finally:
