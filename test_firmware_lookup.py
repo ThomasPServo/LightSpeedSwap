@@ -35,6 +35,16 @@ def beta_record():
 
 
 class FirmwareLookup(unittest.TestCase):
+    def test_future_numeric_versions_and_models_need_no_new_allowlist(self):
+        for version, build in [('28.0', '25A5001a'), ('30.12.3', '27Z5002b')]:
+            st = state(product='iPhone99,2', hardware='X99AP', version=version, build=build)
+            record = beta_record()
+            record.update(version=version + ' beta 2', build=build)
+            record['sources'][0]['deviceMap'] = [st.product]
+            record['sources'][0]['boardMap'] = [st.hardware]
+            with self.subTest(version=version), patch.object(p, 'get_bytes', side_effect=[MISSING, json.dumps(record).encode()]):
+                self.assertEqual(p.firmware_url(st), URL)
+
     def lookup(self, record, primary=MISSING):
         with patch.object(p, 'get_bytes', side_effect=[primary, json.dumps(record).encode()]):
             return p.firmware_url(beta_state())

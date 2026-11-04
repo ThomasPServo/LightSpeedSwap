@@ -37,6 +37,11 @@ Python 3.9+ starts it; explicit one-time setup prepares a private Python 3.11+
 runtime with the tested dependencies. Python and dependencies are not embedded
 in the small app download.
 
+**0.7.4 fixes exact-build beta firmware discovery and strengthens updates.**
+Replace the old `.pyz`, run `setup`, then `setup-device`. Existing caches and
+restoration receipts are preserved. Beta lookup is separate from carrier-signing
+and on-phone compatibility; unsupported keys or formats still stop safely.
+
 **Intel Mac setup is supported in 0.7.1 and later.** Download the new `.pyz` and run
 `python3 LightSpeedSwap.pyz setup` again, including after a failed 0.7.0 install.
 No Homebrew, Rust, OpenSSL development package, or manual runtime deletion is
@@ -349,6 +354,39 @@ new version/build, so an old firmware cache is never silently reused. Then run
 a newer prepared carrier version is installed and verified by version as well as
 SIM identity. A newer active carrier version is never replaced with older files.
 
+Run `status` after updating iOS or carrier settings. Its `carrier_updates` section
+compares the selected line with both locally verified targets:
+
+| Action | Meaning / next step |
+| --- | --- |
+| `matches_prepared_version` | The active target/version matches the prepared files; this is not an online latest-version check. |
+| `refresh_available` | A newer version of the active target is prepared; run `switch --to mvno` or `switch --to wholesale` to apply it. |
+| `switch_available` | The other target is prepared at a version that would not downgrade the selected line. |
+| `newer_signed_pair_required` | The phone reports newer settings than this target; import a current signed pair before switching to it. |
+| `select_one_line` / `unsupported_line` | Select the intended supported line with `--slot`; no compatibility inference is made for other carriers. |
+| `unknown_active_version` | The reported version cannot be ordered safely; switching stops until valid metadata is available. |
+
+These comparisons do not prove installation, SIM eligibility, or the latest
+Apple carrier release. The usual SIM and signature checks still run before an
+install. An installed custom selector can hide a newer broad OTA candidate, so
+matching versions alone do not prove that no carrier update exists.
+
+To deliberately prepare the same firmware again, use:
+
+```sh
+python3 LightSpeedSwap.pyz setup-device --refresh
+```
+
+This downloads the exact firmware again and can require several GB. An explicit
+`--firmware-url` also fetches that image even if a payload is already prepared.
+Neither operation discovers carrier-only updates. Refreshes and pack imports
+cannot replace a newer cached or included version for either target. The
+comparison runs under the cache writer lock, so a newer pair imported during a
+long download is preserved. A new iOS build gets its own exact-build cache entry. After an app update, a
+newer included pair takes precedence over an older cache; a newer cache also
+takes precedence over older included files. If each pair has a newer version of
+a different target, switching stops until a complete current pair is imported.
+
 If Apple ships a carrier-only update newer than the firmware's bundled files,
 prepare the exact firmware first, then import both original signed update IPCCs:
 
@@ -360,7 +398,10 @@ python3 LightSpeedSwap.pyz switch --to wholesale
 Both identities, signatures, board overrides, versions, and a declared minimum
 OS version are checked. An invalid/incomplete/downgrade pair leaves the cache
 untouched. Importing updates is host-only; it does not install them. An exported
-pack preserves the carrier-update provenance.
+pack preserves the carrier-update provenance. Minimum OS requirements are also
+enforced when preparing firmware, importing packs, and reading cached payloads.
+Each target is compared with its own previous version, allowing MVNO and Wholesale
+version numbers to evolve separately while keeping the active-version downgrade guard.
 
 This does not promise automatic Apple OTA behavior: an installed custom selector
 can outrank later broad carrier candidates. Reconnect and refresh after updates.

@@ -122,7 +122,7 @@ class RangeReader(io.RawIOBase):
     def _request_range(self, start, end):
         request = urllib.request.Request(self.url, headers={
             'Range': f'bytes={start}-{end}', 'Accept-Encoding': 'identity',
-            'User-Agent': 'LightSpeedSwap/0.7.3'})
+            'User-Agent': 'LightSpeedSwap/0.7.4'})
         with urllib.request.urlopen(request, timeout=self.timeout, context=https_context()) as response:
             final = urllib.parse.urlsplit(response.geturl())
             host = final.hostname or ''

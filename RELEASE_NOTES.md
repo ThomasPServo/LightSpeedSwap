@@ -1,44 +1,59 @@
-# LightSpeedSwap 0.7.3
+# LightSpeedSwap 0.7.4
 
-Fix `setup-device` stopping at the 45-minute firmware download limit even while
-the download is progressing, as reported on Windows with iPhone16,1 / iOS 27.0.1 /
-24A446. The old code also discarded the unfinished image on failure.
+Fix exact-build beta firmware discovery and preserve newer carrier settings
+through later firmware and carrier updates.
 
 ## Upgrade
 
-Replace the old **LightSpeedSwap.pyz** with this download, then on Windows run:
+Replace **LightSpeedSwap.pyz**, then run:
 
-```powershell
-py -3 LightSpeedSwap.pyz setup
-py -3 LightSpeedSwap.pyz setup-device
+```sh
+python3 LightSpeedSwap.pyz setup
+python3 LightSpeedSwap.pyz setup-device
+python3 LightSpeedSwap.pyz status
 ```
 
-Use `python3` in place of `py -3` on macOS/Linux. Keep the existing state folder;
-setup preserves verified carrier caches and original-bundle receipts. The CLI
-remains under 500 KiB. This release also includes the 0.7.1 Intel dependency and
-0.7.2 HTTPS certificate fixes.
+Use `py -3` instead of `python3` on Windows. Keep the existing state folder;
+verified payloads and original-bundle receipts survive the app update.
 
-## Download fixes
+## Changes
 
-- Remove the total 45-minute download deadline. Each range request still has a
-  45-second socket inactivity timeout and at most three attempts for transient
-  network/server errors. Certificate, redirect, and range validation stay on.
-- Keep one pending filesystem-member download when setup is interrupted or the
-  network fails. Rerunning `setup-device` resumes both stored and deflated ZIP
-  members without downloading the saved prefix again. This is explicit resume,
-  not a background downloader or repeated phone operation.
-- Bind the checkpoint to the URL, archive size, and ZIP member identity, offset,
-  sizes, compression, and CRC. Recheck the full member CRC before extraction;
-  reject and discard corrupted saved data. Original Apple carrier-signature and
-  exact firmware-identity checks remain required before a bundle enters cache.
-- Remove the checkpoint after a successful download and temporary expanded
-  images after preparation. `cache clear-download` discards the pending download
-  while preserving verified payloads and restoration receipts. One pending image
-  is outside the 8 MiB payload limit and can occupy several GB until resumed or
-  explicitly cleared. Disk-space checks include both checkpoint and output.
+- Exact model/build discovery falls back from IPSW.me to AppleDB when needed.
+  Only a unique active Apple HTTPS IPSW for the exact version/build/model is
+  selected. Developer beta erase/upgrade manifests are now recognized.
+- Future numeric iOS versions, model identifiers, and carrier versions do not
+  require an app allowlist update when their formats remain supported.
+- `status` compares both prepared versions with the selected line and reports
+  whether a refresh is available or a newer signed pair is required. It does
+  not claim that locally matching versions are Apple's latest release.
+- `setup-device --refresh` explicitly fetches the exact firmware again.
+  A supplied `--firmware-url` is honored even when a payload is already cached.
+- Firmware refreshes and pack imports reject downgrades of either prepared
+  target. The comparison holds the cache lock and preserves updates imported
+  while a large firmware download was in progress.
+- App updates choose a complete newer pair from included or cached files.
+  Conflicting pairs stop and can be resolved by importing a current signed pair.
+- Signed minimum-iOS requirements apply to every payload import/read path.
+  MVNO and Wholesale can have different versions; each update is compared with
+  its own previous version and the selected line's active version.
 
-The failed 70.9% download from 0.7.0 was deleted by that version and cannot be
-recovered retroactively. These host-download fixes do not establish physical
-switching on the reported model/build. Setup-device does not install to a phone.
+## Validation and limits
+
+178 offline tests pass on Linux/Python 3.12. The release is gated on the existing
+18-job Windows/Linux/Apple Silicon/Intel Mac compatibility workflow.
+The catalog matrix covers 35 iPhone identifiers and 16 iOS 27 beta/RC builds:
+419/419 beta combinations and 65/69 RC combinations resolve and validate.
+Four RC combinations have no unique active IPSW in either index; no other build
+is substituted. All 442 available actual IPSW manifests and 2,904 negative
+identity/format controls passed. See VALIDATION.md for scope and reproduction.
+
+Manifest checks do not establish beta carrier-signature or physical-switching
+support. Unknown Apple signing keys, signature layouts, and firmware formats
+still require a reviewed app update; verification is never bypassed. Future
+iOS changes to the installation/selector mechanism cannot be guaranteed.
+
+A custom selector remains on the phone after revert and may outrank later broad
+carrier updates. Reconnect, check status, and refresh manually when needed.
+There is no background updater or automatic discovery of carrier-only IPCCs.
 
 Independent project; not affiliated with Apple, US Mobile, or T-Mobile.
