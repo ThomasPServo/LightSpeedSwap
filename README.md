@@ -42,6 +42,21 @@ Replace the old `.pyz`, run `setup`, then `setup-device`. Existing caches and
 restoration receipts are preserved. Beta lookup is separate from carrier-signing
 and on-phone compatibility; unsupported keys or formats still stop safely.
 
+**iPhone 18 Pro Max on iOS 27.3 beta 2 (24C5049f).** If `status` shows
+`iPhone19,3 / V64AP` and this build, download the
+[199 KB carrier pack](https://raw.githubusercontent.com/ThomasPServo/LightSpeedSwap/v0.7.4/packs/24C5049f/LightSpeedSwap-iPhone19-3-v64ap-27.3-24C5049f.carrierpack).
+It contains both original Apple-signed 74.0 bundles extracted on Windows.
+With the pack and the 0.7.4 CLI in the same folder, Windows users can run:
+
+```powershell
+py -3 LightSpeedSwap.pyz setup
+py -3 LightSpeedSwap.pyz setup-device --bundle-pack LightSpeedSwap-iPhone19-3-v64ap-27.3-24C5049f.carrierpack
+py -3 LightSpeedSwap.pyz status
+```
+
+This skips the 9.125 GiB image download. For other models or builds, run
+`setup-device` to prepare their exact firmware.
+
 **Intel Mac setup in 0.7.4** uses a snapshot of Espressif’s Intel build of
 **cryptography 50.0.2**. Earlier downloads can stop at a checksum mismatch
 because the vendor rebuilt the wheel under the same filename. Download the

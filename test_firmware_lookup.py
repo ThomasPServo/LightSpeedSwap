@@ -1,6 +1,7 @@
 """Exact-build beta discovery and manifest gates, without a phone or downloads."""
 import copy
 import json
+from pathlib import Path
 import plistlib
 import tempfile
 import unittest
@@ -12,6 +13,7 @@ from cryptography.hazmat.primitives.asymmetric import ec, utils
 
 import carrier_payloads as p
 import carrier_signature_audit as audit
+import carrier_store as store
 import carrier_switch as c
 from test_carrier_payloads import manifest
 from test_carrier_switch import state
@@ -172,24 +174,26 @@ class FirmwareLookup(unittest.TestCase):
 
 
 class BetaManifestContracts(unittest.TestCase):
-    def test_24c5049f_pro_max_selects_the_developer_image_alongside_recovery(self):
+    def test_24c5049f_pro_max_imports_verified_developer_image_bundles(self):
         device = state(product='iPhone19,3', hardware='V64AP', version='27.3', build='24C5049f')
-        # Selection fields from the three V64AP identities in Apple's multi-model IPSW.
-        os_image = '141-93738-042.dmg.aea'
-        value = {'ProductVersion': '27.3', 'ProductBuildVersion': '24C5049f',
-                 'SupportedProductTypes': ['iPhone19,2', 'iPhone19,3', 'iPhone19,7'],
-                 'BuildIdentities': []}
-        for variant, image in [('Recovery Customer Install', '141-93066-049.dmg.aea'),
-                               ('Developer Erase Install (IPSW)', os_image),
-                               ('Developer Upgrade Install (IPSW)', os_image)]:
-            value['BuildIdentities'].append({
-                'Ap,ProductType': 'iPhone19,3',
-                'Info': {'DeviceClass': 'v64ap', 'Variant': variant},
-                'Manifest': {'OS': {'Info': {'Path': image}}}})
-        self.assertEqual(p.validate_manifest(value, device), os_image)
-        value['BuildIdentities'] = value['BuildIdentities'][:1]
+        pack = (Path(__file__).parent / 'packs' / '24C5049f' /
+                'LightSpeedSwap-iPhone19-3-v64ap-27.3-24C5049f.carrierpack')
+        with tempfile.TemporaryDirectory() as root:
+            saved = p.import_pack(root, device, pack)
+            entries, objects = store.read(saved)
+            entry = entries[store.entry_key(p.identity(device))]
+            manifest_bytes, bundles = p.validate_entry(device, entry, objects)
+        self.assertEqual(entry['filesystem_image'], '141-93738-042.dmg.aea')
+        for target in p.NAMES:
+            info, signatures = p.validate_files(target, bundles[target])
+            self.assertEqual(info['CFBundleVersion'], '74.0')
+            self.assertEqual(set(signatures), {'common', 'V63_V64s_V68', 'V64'})
+        recovery = plistlib.loads(manifest_bytes)
+        recovery['BuildIdentities'] = [i for i in recovery['BuildIdentities']
+                                       if i['Info']['Variant'] == 'Recovery Customer Install']
+        self.assertTrue(recovery['BuildIdentities'])
         with self.assertRaisesRegex(ValueError, 'exactly one'):
-            p.validate_manifest(value, device)
+            p.validate_manifest(recovery, device)
 
     def test_developer_erase_and_upgrade_select_same_filesystem(self):
         s = beta_state()

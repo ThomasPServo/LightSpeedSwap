@@ -21,8 +21,11 @@ verified payloads and original-bundle receipts survive the app update.
 - Exact model/build discovery falls back from IPSW.me to AppleDB when needed.
   Only a unique active Apple HTTPS IPSW for the exact version/build/model is
   selected. Developer beta erase/upgrade manifests are now recognized.
-- The reported iPhone 18 Pro Max (V64AP, iOS 27.3 beta 2, build 24C5049f)
-  selects the Developer filesystem image from Apple’s restore archive.
+- Windows preparation was verified on the actual iPhone 18 Pro Max restore
+  image for iOS 27.3 beta 2 (iPhone19,3 / V64AP / 24C5049f). Users of this
+  exact build can [download the 199 KB carrier pack](https://raw.githubusercontent.com/ThomasPServo/LightSpeedSwap/v0.7.4/packs/24C5049f/LightSpeedSwap-iPhone19-3-v64ap-27.3-24C5049f.carrierpack) and run
+  `py -3 LightSpeedSwap.pyz setup-device --bundle-pack LightSpeedSwap-iPhone19-3-v64ap-27.3-24C5049f.carrierpack`.
+  Both Apple-signed bundles are version 74.0.
 - Intel Mac setup downloads a commit-pinned, SHA-256-verified copy of the
   Espressif wheel. This fixes the checksum failure caused by an upstream rebuild.
 - Future numeric iOS versions, model identifiers, and carrier versions do not
