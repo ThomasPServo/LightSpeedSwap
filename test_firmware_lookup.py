@@ -172,6 +172,25 @@ class FirmwareLookup(unittest.TestCase):
 
 
 class BetaManifestContracts(unittest.TestCase):
+    def test_24c5049f_pro_max_selects_the_developer_image_alongside_recovery(self):
+        device = state(product='iPhone19,3', hardware='V64AP', version='27.3', build='24C5049f')
+        # Selection fields from the three V64AP identities in Apple's multi-model IPSW.
+        os_image = '141-93738-042.dmg.aea'
+        value = {'ProductVersion': '27.3', 'ProductBuildVersion': '24C5049f',
+                 'SupportedProductTypes': ['iPhone19,2', 'iPhone19,3', 'iPhone19,7'],
+                 'BuildIdentities': []}
+        for variant, image in [('Recovery Customer Install', '141-93066-049.dmg.aea'),
+                               ('Developer Erase Install (IPSW)', os_image),
+                               ('Developer Upgrade Install (IPSW)', os_image)]:
+            value['BuildIdentities'].append({
+                'Ap,ProductType': 'iPhone19,3',
+                'Info': {'DeviceClass': 'v64ap', 'Variant': variant},
+                'Manifest': {'OS': {'Info': {'Path': image}}}})
+        self.assertEqual(p.validate_manifest(value, device), os_image)
+        value['BuildIdentities'] = value['BuildIdentities'][:1]
+        with self.assertRaisesRegex(ValueError, 'exactly one'):
+            p.validate_manifest(value, device)
+
     def test_developer_erase_and_upgrade_select_same_filesystem(self):
         s = beta_state()
         value = manifest(s)

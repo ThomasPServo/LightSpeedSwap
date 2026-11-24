@@ -2,6 +2,8 @@ name: Native Windows and Linux firmware
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths: ['.github/native-firmware-request.json']
   push:
     branches: [main]
     paths: ['.github/native-firmware-request.json']
@@ -15,10 +17,11 @@ concurrency:
 
 jobs:
   prepare:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-2025, ubuntu-24.04-arm, windows-11-arm]
+        os: ${{ fromJSON(github.event_name == 'pull_request' && '["windows-2025"]' || '["ubuntu-24.04","windows-2025","ubuntu-24.04-arm","windows-11-arm"]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     defaults:

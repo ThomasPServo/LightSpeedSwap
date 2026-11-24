@@ -21,6 +21,10 @@ verified payloads and original-bundle receipts survive the app update.
 - Exact model/build discovery falls back from IPSW.me to AppleDB when needed.
   Only a unique active Apple HTTPS IPSW for the exact version/build/model is
   selected. Developer beta erase/upgrade manifests are now recognized.
+- The reported iPhone 18 Pro Max (V64AP, iOS 27.3 beta 2, build 24C5049f)
+  selects the Developer filesystem image from Apple’s restore archive.
+- Intel Mac setup downloads a commit-pinned, SHA-256-verified copy of the
+  Espressif wheel. This fixes the checksum failure caused by an upstream rebuild.
 - Future numeric iOS versions, model identifiers, and carrier versions do not
   require an app allowlist update when their formats remain supported.
 - `status` compares both prepared versions with the selected line and reports
@@ -39,7 +43,7 @@ verified payloads and original-bundle receipts survive the app update.
 
 ## Validation and limits
 
-178 offline tests pass on Linux/Python 3.12. The release is gated on the existing
+179 offline tests pass on Linux/Python 3.12. The release is gated on the existing
 18-job Windows/Linux/Apple Silicon/Intel Mac compatibility workflow.
 The catalog matrix covers 35 iPhone identifiers and 16 iOS 27 beta/RC builds:
 419/419 beta combinations and 65/69 RC combinations resolve and validate.

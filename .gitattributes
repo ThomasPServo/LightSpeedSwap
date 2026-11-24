@@ -1,3 +1,4 @@
 * text=auto eol=lf
 *.pyz binary
 *.carrierpack binary
+*.whl binary

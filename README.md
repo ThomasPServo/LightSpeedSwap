@@ -42,16 +42,13 @@ Replace the old `.pyz`, run `setup`, then `setup-device`. Existing caches and
 restoration receipts are preserved. Beta lookup is separate from carrier-signing
 and on-phone compatibility; unsupported keys or formats still stop safely.
 
-**Intel Mac setup is supported in 0.7.1 and later.** Download the new `.pyz` and run
-`python3 LightSpeedSwap.pyz setup` again, including after a failed 0.7.0 install.
-No Homebrew, Rust, OpenSSL development package, or manual runtime deletion is
-needed for this fix. Existing carrier cache and restoration receipts are kept.
-Setup uses a SHA-256-pinned Intel build of **cryptography 50.0.2** maintained by
-[Espressif](https://github.com/espressif/idf-python-wheels#macos-intel-x86_64-and-cryptography),
-with OpenSSL included. Apple Silicon, Windows x64, and Linux retain their PyPI
-packages. The Intel wheel is downloaded only when needed; it is not embedded
-in the CLI. A missing or changed package stops setup instead of compiling it or
-silently installing an older cryptography version.
+**Intel Mac setup in 0.7.4** uses a snapshot of Espressif’s Intel build of
+**cryptography 50.0.2**. Earlier downloads can stop at a checksum mismatch
+because the vendor rebuilt the wheel under the same filename. Download the
+new CLI and run `python3 LightSpeedSwap.pyz setup` again. Setup checks the
+snapshot’s SHA-256 and keeps the existing carrier cache and restoration receipts.
+Only Intel Mac setup downloads the wheel. OpenSSL is included in the wheel.
+[Build and verification details](VALIDATION.md#intel-mac-dependency).
 
 **0.7.2 fixes macOS certificate errors during `setup-device`.** Replace the
 previous download and run `python3 LightSpeedSwap.pyz setup` once, then retry

@@ -1,6 +1,6 @@
 # 0.7.4 update lifecycle and beta matrix
 
-The local suite passes all **178 tests** on Linux/Python 3.12. `pip check`,
+The local suite passes all **179 tests** on Linux/Python 3.12. `pip check`,
 `doctor` (all seven included original signed entries), CLI execution, and
 reproducible distribution checks pass. The update tests cover older pack imports,
 refreshes over newer carrier-only updates, updates arriving during downloads,
@@ -49,6 +49,39 @@ jobs in [run 41844217861](https://github.com/ThomasPServo/LightSpeedSwap/actions
 A duplicate run had one cancelled job; rerunning that job on the unchanged
 revision completed successfully. New 0.7.4 code must pass its own workflow before
 publication; the old run is not evidence for the later changes.
+
+## iPhone 18 Pro Max on iOS 27.3 beta 2
+
+On 2026-11-24, automatic lookup for `iPhone19,3 / V64AP / 27.3 / 24C5049f`
+resolved the [Apple IPSW](https://updates.cdn-apple.com/2026FallSeed/e5812d44-e8b5-4cc1-bdc9-de4d7a309002/iPhone19,2,iPhone19,3,iPhone19,7_27.3_24C5049f_Restore.ipsw).
+The production ZIP reader fetched the 3,339,028-byte BuildManifest directly from
+that archive. Its SHA-256 is `9255e203651ff2551725103337be45418b38c99cb0dfedb9c3684d2cdc39c9da`.
+
+| V64AP identity | Filesystem image |
+| --- | --- |
+| Developer Erase Install (IPSW) | `141-93738-042.dmg.aea` |
+| Developer Upgrade Install (IPSW) | `141-93738-042.dmg.aea` |
+| Recovery Customer Install | `141-93066-049.dmg.aea` |
+
+The released 0.7.3 CLI reproduces the Customer IPSW error from
+[issue #3](https://github.com/ThomasPServo/LightSpeedSwap/issues/3) on these
+bytes. The 0.7.4 CLI selects the 9,797,894,144-byte Developer image. The
+regression test covers the coexisting Recovery identity and a Recovery-only
+manifest. This check exercises image selection. Physical activation requires
+testing on the matching iPhone.
+
+## Intel Mac dependency
+
+The Espressif wheel URL used by 0.7.1–0.7.3 returned a rebuilt file during
+[the 0.7.4 compatibility run](https://github.com/ThomasPServo/LightSpeedSwap/actions/runs/41855277065).
+On 2026-11-24 both of Espressif’s download hosts returned the same 3,716,685
+bytes, with SHA-256 `734a541c8ad5642a4d0cb25c9da74559e4c2f73161cb2d1f016e63a91081e1e1`.
+We verified every hashed entry in the wheel’s RECORD and compared all 110
+Python files and type stubs with the hash-pinned PyPI 50.0.2 source archive.
+The x86_64 native extension links to libSystem and libiconv in /usr/lib.
+The 0.7.4 requirements bind pip to these bytes at a specific Git commit.
+The original cp311-abi3 wheel tag retains its macOS 10.12 deployment target.
+[Espressif wheel index](https://dl.espressif.com/pypi/cryptography/).
 
 ## Unreleased beta firmware discovery and manifest handling
 
