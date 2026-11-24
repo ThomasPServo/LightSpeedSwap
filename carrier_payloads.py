@@ -73,18 +73,39 @@ def load_bundled(root):
     return store.read(path)
 
 
-def locate(root, state):
+def locate(root, state, *, for_update=False):
     key = store.entry_key(identity(state))
     cached = cache_path(root)
+    candidates = []
     if cached.exists():
         content = store.read(cached)
         if key in content[0]:
-            return 'cached', content, key
+            candidates.append(('cached', content, key))
     if (Path(root) / 'bundled.carrierpack').exists():
         content = load_bundled(root)
         if key in content[0]:
-            return 'included', content, key
-    raise MissingPayload('No verified payload for this model/build. Run: bash Run.command setup-device')
+            candidates.append(('included', content, key))
+    if len(candidates) == 2:
+        versions = []
+        for _, (entries, objects), _ in candidates:
+            validate_entry(state, entries[key], objects)
+            versions.append({target: version_tuple(entries[key]['bundles'][target]['version']) for target in NAMES})
+        # An app update can ship a newer pair than the local cache. Prefer a
+        # complete pair that does not regress either target; never mix editions
+        # or let an older cache silently shadow a newer included pair.
+        if all(versions[0][t] >= versions[1][t] for t in NAMES):
+            return candidates[0]
+        if all(versions[1][t] >= versions[0][t] for t in NAMES):
+            return candidates[1]
+        if for_update:
+            # Only an import may use this manifest to resolve the conflict.
+            # save_payload rechecks BOTH pairs before committing its result.
+            return candidates[0]
+        raise ValueError('Included and cached carrier pairs each contain a newer target. '
+                         'Import a current signed pair for both targets before switching; no files changed.')
+    if candidates:
+        return candidates[0]
+    raise MissingPayload('No verified payload for this exact model/board/iOS/build. Run setup-device with this CLI.')
 
 
 class MissingPayload(ValueError):
@@ -98,10 +119,12 @@ def validate_files(target, files):
     ensure(isinstance(info, dict), 'Unsupported carrier Info.plist format.')
     ensure(info.get('CFBundleIdentifier') == 'com.apple.' + NAMES[target], "Wrong carrier bundle identity.")
     ensure(info.get('CFBundleDeviceFamily') == 'iPhone', "The bundle is not for iPhone.")
-    ensure(re.fullmatch(r'[0-9]+(?:\.[0-9]+){0,3}', str(info.get('CFBundleVersion', ''))),
-           "Missing carrier bundle version.")
+    version_tuple(info.get('CFBundleVersion'))
     signatures = check_signatures(files)
-    ensure(all(v['signature_valid'] for v in signatures.values()), "An Apple carrier signature failed verification.")
+    ensure(all(v['signature_valid'] for v in signatures.values()),
+           "An Apple carrier signature failed verification. "
+           "The bundle may be changed or use an unsupported signing key (including a beta key). "
+           "An independently verified Apple key is required; do not bypass this check.")
     return info, signatures
 
 
@@ -121,6 +144,9 @@ def validate_entry(state, entry, objects):
         overrides = set(groups) - {'common'}
         ensure(not overrides or any(board in group.lower().split('_') for group in overrides),
                'Signed override groups do not include this hardware board.')
+        if 'MinimumOSVersion' in info:
+            ensure(version_tuple(state.version) >= version_tuple(info['MinimumOSVersion']),
+                   'Carrier update requires a newer iOS version.')
         bundles[target] = files
     return manifest_bytes, bundles
 
@@ -129,6 +155,43 @@ def read_cached(root, state, target):
     _, (entries, objects), key = locate(root, state)
     _, bundles = validate_entry(state, entries[key], objects)
     return bundles[target]
+
+
+def update_status(root, state):
+    """Compare verified local files with one reported line; no online freshness claim."""
+    source, (entries, objects), key = locate(root, state)
+    entry = entries[key]
+    validate_entry(state, entry, objects)
+    line = getattr(state, 'line', None)
+    active = str(line.get('CFBundleVersion', '')) if line else ''
+    current = str(line.get('CFBundleIdentifier', '')) if line else ''
+    try:
+        active_order = version_tuple(active)
+    except ValueError:
+        active_order = None
+    targets = {}
+    for target, name in NAMES.items():
+        available = entry['bundles'][target]['version']
+        order = version_tuple(available)
+        if line is None:
+            action = 'select_one_line'
+        elif current not in {'com.apple.' + n for n in NAMES.values()}:
+            action = 'unsupported_line'
+        elif active_order is None:
+            action = 'unknown_active_version'
+        elif order < active_order:
+            action = 'newer_signed_pair_required'
+        elif current != 'com.apple.' + name:
+            action = 'switch_available'
+        elif order > active_order:
+            action = 'refresh_available'
+        else:
+            action = 'matches_prepared_version'
+        targets[target] = {'prepared_version': available, 'action': action}
+    return {'source': source, 'origin': entry.get('origin', 'firmware'),
+            'active_version': active or None, 'targets': targets,
+            'online_update_check': False,
+            'latest_available_version': None}
 
 
 def export_pack(root, state, output):
@@ -166,7 +229,9 @@ def validate_manifest(manifest, state):
         if (info['DeviceClass'].lower() != expected['hardware']
                 or candidate.get('Ap,ProductType', expected['product']) != expected['product']):
             continue
-        if info.get('Variant') not in {'Customer Erase Install (IPSW)', 'Customer Upgrade Install (IPSW)'}:
+        if info.get('Variant') not in {
+                'Customer Erase Install (IPSW)', 'Customer Upgrade Install (IPSW)',
+                'Developer Erase Install (IPSW)', 'Developer Upgrade Install (IPSW)'}:
             continue
         component = candidate.get('Manifest')
         for part in ('OS', 'Info'):
@@ -176,7 +241,7 @@ def validate_manifest(manifest, state):
                'Unsupported BuildManifest filesystem path.')
         paths.add(component['Path'])
     ensure(len(paths) == 1 and '' not in paths,
-           'Cannot identify exactly one supported Customer IPSW filesystem image for this hardware. '
+           'Cannot identify exactly one supported Customer or Developer IPSW filesystem image for this hardware. '
            'A changed firmware format requires an app update.')
     name = next(iter(paths))
     ensure(re.fullmatch(r'[A-Za-z0-9_-]+\.dmg(?:\.aea)?', name), "Unexpected filesystem image path.")
@@ -197,8 +262,24 @@ def save_payload(root, state, manifest_bytes, source, bundles, origin='firmware'
                                      'files': {name: store.digest(data) for name, data in sorted(files.items())}}
         objects.update({store.digest(data): data for data in files.values()})
     validate_entry(state, record, objects)
+
+    def prevent_downgrade(previous, previous_objects):
+        # Compare versions in signed Info.plist, never unvalidated index labels.
+        validate_entry(state, previous, previous_objects)
+        for target in NAMES:
+            ensure(version_tuple(record['bundles'][target]['version']) >=
+                   version_tuple(previous['bundles'][target]['version']),
+                   'Refusing to downgrade the prepared ' + target + ' bundle. '
+                   'Keep the newer signed carrier update pair; existing cache preserved.')
+
+    included = Path(root) / 'bundled.carrierpack'
+    if included.exists():
+        included_entries, included_objects = load_bundled(root)
+        key = store.entry_key(identity(state))
+        if key in included_entries:
+            prevent_downgrade(included_entries[key], included_objects)
     destination = cache_path(root)
-    stats = store.put(destination, record, objects)
+    stats = store.put(destination, record, objects, validate_existing=prevent_downgrade)
     if stats['evicted_entries']:
         print('Cache limit: removed ' + str(stats['evicted_entries']) + ' older prepared entries.', flush=True)
     return destination
@@ -206,16 +287,16 @@ def save_payload(root, state, manifest_bytes, source, bundles, origin='firmware'
 
 def import_carrier_updates(root, state, mvno, wholesale):
     """Accept an original signed update pair for already prepared exact firmware."""
-    _, (entries, objects), key = locate(root, state)
+    _, (entries, objects), key = locate(root, state, for_update=True)
     entry = entries[key]
     manifest_bytes, previous = validate_entry(state, entry, objects)
     bundles = {target: read_package(path)[1] for target, path in
                (('mvno', mvno), ('wholesale', wholesale))}
     active_version = str((state.line or {}).get('CFBundleVersion', ''))
-    floor = max(version_tuple(active_version), *(version_tuple(plistlib.loads(f['Info.plist'])['CFBundleVersion'])
-                                               for f in previous.values()))
     for target, files in bundles.items():
         info, _ = validate_files(target, files)
+        floor = max(version_tuple(active_version),
+                    version_tuple(plistlib.loads(previous[target]['Info.plist'])['CFBundleVersion']))
         ensure(version_tuple(info['CFBundleVersion']) >= floor,
                'Carrier update pair would downgrade an active or cached bundle.')
         if 'MinimumOSVersion' in info:
@@ -236,21 +317,93 @@ def apple_url(url):
 
 
 def get_bytes(url, limit):
-    request = urllib.request.Request(url, headers={'User-Agent': 'LightSpeedSwap/0.5.0 (local firmware importer)'})
+    request = urllib.request.Request(url, headers={'User-Agent': 'LightSpeedSwap/0.7.4 (local firmware importer)'})
     with urllib.request.urlopen(request, timeout=45, context=https_context()) as response:
         data = response.read(limit + 1)
     ensure(len(data) <= limit, "Download exceeded the expected size.")
     return data
 
 
+def appledb_urls(result, ident):
+    """Read discovery metadata only; the Apple manifest/signatures remain authoritative."""
+    ensure(isinstance(result, dict), 'Unsupported AppleDB build record.')
+    version = result.get('version')
+    # AppleDB uses display labels (e.g. "27.3 beta"), unlike lockdown's "27.3".
+    # Only known channel suffixes may be removed; never match a version prefix.
+    match = re.fullmatch(r'([0-9]+(?:\.[0-9]+){0,3})(?: (?:beta|RC)(?: [0-9]+)?)?',
+                         version) if isinstance(version, str) else None
+    ensure(result.get('osStr') == 'iOS' and result.get('build') == ident['build']
+           and match is not None and match.group(1) == ident['version'],
+           'AppleDB record does not match the exact iOS version/build.')
+    sources = result.get('sources')
+    ensure(isinstance(sources, list), 'Unsupported AppleDB sources.')
+    urls = set()
+    for source in sources:
+        ensure(isinstance(source, dict), 'Unsupported AppleDB source.')
+        if source.get('type') != 'ipsw':
+            continue
+        devices = source.get('deviceMap')
+        ensure(isinstance(devices, list) and all(isinstance(v, str) for v in devices),
+               'Unsupported AppleDB device list.')
+        if ident['product'] not in devices:
+            continue
+        boards = source.get('boardMap')
+        if boards is not None:
+            ensure(isinstance(boards, list) and all(isinstance(v, str) for v in boards),
+                   'Unsupported AppleDB board list.')
+            if ident['hardware'] not in {v.lower() for v in boards}:
+                continue
+        links = source.get('links')
+        ensure(isinstance(links, list), 'Unsupported AppleDB links.')
+        for link in links:
+            ensure(isinstance(link, dict), 'Unsupported AppleDB link.')
+            if link.get('active') is True:
+                ensure(isinstance(link.get('url'), str), 'Unsupported AppleDB download URL.')
+                # The published API adds HTTP mirrors alongside HTTPS originals.
+                # Ignore them; do not rewrite or fetch an insecure mirror URL.
+                if urllib.parse.urlsplit(link['url']).scheme == 'http':
+                    continue
+                urls.add(apple_url(link['url']))
+    return urls
+
+
 def firmware_url(state):
     ident = identity(state)
+    recovery = (f"No unique exact-build IPSW for {ident['product']} / iOS {ident['version']} / "
+                f"{ident['build']}. Supply --firmware-url with the official Apple IPSW URL "
+                "for this exact model/build. Firmware lookup does not establish beta signing support.")
     # Public model/build only. Never includes UDID, SIM identifiers or GID1.
-    result = json.loads(get_bytes('https://api.ipsw.me/v4/device/' + ident['product'] + '?type=ipsw', 16 * 1024 * 1024))
-    urls = {v['url'] for v in result.get('firmwares', [])
-            if v.get('buildid') == state.build and v.get('version') == state.version}
-    ensure(len(urls) == 1, "The firmware index has no unique exact-build image. Supply --firmware-url with its official Apple IPSW URL.")
-    return apple_url(next(iter(urls)))
+    try:
+        result = json.loads(get_bytes('https://api.ipsw.me/v4/device/' + ident['product'] + '?type=ipsw',
+                                      16 * 1024 * 1024))
+        ensure(isinstance(result, dict) and isinstance(result.get('firmwares'), list),
+               'Unsupported IPSW.me firmware index.')
+        ensure(result.get('identifier', ident['product']) == ident['product'],
+               'IPSW.me returned a different device.')
+        urls = set()
+        for item in result['firmwares']:
+            ensure(isinstance(item, dict), 'Unsupported IPSW.me firmware record.')
+            if item.get('buildid') == ident['build'] and item.get('version') == ident['version']:
+                ensure(isinstance(item.get('url'), str), 'Unsupported IPSW.me download URL.')
+                urls.add(apple_url(item['url']))
+    except (OSError, ValueError) as error:
+        # Index outages and missing beta metadata must not require a manual URL.
+        primary_problem = 'IPSW.me lookup failed: ' + str(error)
+        urls = set()
+    else:
+        primary_problem = 'IPSW.me has no exact-build entry.'
+    ensure(len(urls) <= 1, 'IPSW.me returned multiple exact-build images. ' + recovery)
+    if urls:
+        return next(iter(urls))
+    try:
+        result = json.loads(get_bytes('https://api.appledb.dev/ios/iOS;' + ident['build'] + '.json',
+                                      4 * 1024 * 1024))
+        urls = appledb_urls(result, ident)
+    except (OSError, ValueError) as error:
+        raise ValueError(recovery + ' ' + primary_problem + ' AppleDB lookup failed: ' + str(error)) from error
+    ensure(len(urls) == 1, recovery + ' ' + primary_problem +
+           f' AppleDB returned {len(urls)} matching active IPSW URLs.')
+    return next(iter(urls))
 
 
 def ensure_ipsw(root):
@@ -339,20 +492,35 @@ def extract_files(image, work, root):
     return bundles
 
 
-def setup_device(root, state, url=None, bundle_pack=None):
+def describe_prepared(root, state):
+    report = update_status(root, state)
+    versions = ', '.join(t + ' ' + v['prepared_version'] for t, v in report['targets'].items())
+    print('Verified exact-build payloads: ' + versions + '. No phone write.', flush=True)
+    if any(v['action'] == 'newer_signed_pair_required' for v in report['targets'].values()):
+        print('The active carrier version is newer. Import a current Apple-signed pair with '
+              'update-carriers before switching to an older prepared target.', flush=True)
+    print('Run status to compare the prepared and active versions. Local files do not establish '
+          'the latest carrier update available from Apple.', flush=True)
+    return report
+
+
+def setup_device(root, state, url=None, bundle_pack=None, refresh=False):
     identity(state)
+    ensure(not (bundle_pack is not None and (refresh or url is not None)),
+           'Choose a bundle pack or a firmware refresh, not both.')
     if bundle_pack is not None:
         destination = import_pack(root, state, bundle_pack)
         print('Verified and imported the small bundle pack. No firmware download or phone write.', flush=True)
+        describe_prepared(root, state)
         return destination
-    try:
-        for target in NAMES:
-            read_cached(root, state, target)
-    except MissingPayload:
-        pass
-    else:
-        print('Signed payloads for this exact model/build are already cached. Ready to switch.', flush=True)
-        return
+    # An explicit URL is also a request to fetch that firmware, even with a cache.
+    if not refresh and url is None:
+        try:
+            prepared = describe_prepared(root, state)
+        except MissingPayload:
+            pass
+        else:
+            return cache_path(root) if prepared['source'] == 'cached' else Path(root) / 'bundled.carrierpack'
     url = apple_url(url) if url else firmware_url(state)
     tool = ensure_firmware_tools(root)
     parent = data_root(root) / '.carrier-cache'
@@ -374,7 +542,7 @@ def setup_device(root, state, url=None, bundle_pack=None):
             image.with_suffix(image.suffix + '.aea').unlink()
         bundles = extract_files(image, work, root)
         destination = save_payload(root, state, manifest_bytes, url, bundles)
-        print('Verified both original Apple-signed bundles and cached them in one compressed store. Ready to switch.', flush=True)
+        describe_prepared(root, state)
         return destination
     finally:
         # A failed detach can leave the mount live; preserve its backing image.

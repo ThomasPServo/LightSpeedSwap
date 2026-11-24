@@ -1,7 +1,7 @@
 {
-  "product": "iPhone19,2",
-  "hardware": "V63AP",
-  "version": "27.2",
-  "build": "24B119",
-  "firmware_url": "https://updates.cdn-apple.com/2026FallFCS/fdde63b6-6de4-4199-a5d4-7ba4e46b758e/iPhone19,2,iPhone19,3,iPhone19,7_27.2_24B119_Restore.ipsw"
+  "product": "iPhone19,3",
+  "hardware": "V64AP",
+  "version": "27.3",
+  "build": "24C5049f",
+  "firmware_url": "https://updates.cdn-apple.com/2026FallSeed/e5812d44-e8b5-4cc1-bdc9-de4d7a309002/iPhone19,2,iPhone19,3,iPhone19,7_27.3_24C5049f_Restore.ipsw"
 }

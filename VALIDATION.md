@@ -1,3 +1,130 @@
+# 0.7.4 update lifecycle and beta matrix
+
+The local suite passes all **179 tests** on Linux/Python 3.12. `pip check`,
+`doctor` (all seven included original signed entries), CLI execution, and
+reproducible distribution checks pass. The update tests cover older pack imports,
+refreshes over newer carrier-only updates, updates arriving during downloads,
+writer-lock enforcement, included/cache selection after app updates, conflicting
+pair recovery, per-target version progression, minimum-iOS checks at
+save/read/import, and status reporting without an online freshness claim.
+Synthetic future bundle versions use an isolated test signing key only inside
+tests; the production Apple trust anchor is unchanged. These tests establish
+update policy and parsing, not compatibility with unreleased iOS behavior.
+
+On 2026-11-04, a saved live AppleDB/IPSW.me snapshot enumerated **35 iPhone
+identifiers, 16 iOS 27 beta/RC builds, and 488 model/board/build combinations**.
+The current lookup and manifest code was replayed against that snapshot:
+
+| Scope | Passed | Unavailable / failed |
+| --- | ---: | ---: |
+| Beta combinations (13 builds) | 419 | 0 |
+| RC combinations (3 builds) | 65 | 4 unavailable IPSWs |
+| Unique actual Apple IPSW manifests | 442 | 0 |
+| Sidecar/archive manifest SHA-256 comparisons | 442 | 0 |
+| Negative identity/format controls | 2,904 expected rejections | 0 unexpected acceptances |
+
+Unavailable combinations: iPhone19,2/V63AP, iPhone19,3/V64AP and
+iPhone19,7/V64sAP on 27.0 RC/24A435; iPhone19,4/V68AP on 27.2 RC/24B91016.
+Neither index supplies a unique active exact-build IPSW for these combinations.
+There were no index-fetch errors or missing board metadata. The matrix exits
+nonzero when any combination is unavailable; these four are not counted as passes.
+All 442 manifests were fetched through the production ZIP range reader and
+validated against their exact product, board, numeric version, and build.
+
+To audit a newly fetched catalog, choose an empty output directory:
+
+```sh
+python beta_firmware_matrix.py --output /path/to/new-audit --archive-checks all
+python check_beta_manifest_rejections.py --output /path/to/new-audit
+```
+
+Use `--reuse-snapshot` to replay an existing audit instead of fetching fresh
+indexes. Reports include source-file SHA-256 values and explicitly distinguish
+cached evidence, actual archive reads, metadata gaps, and lookup failures.
+This matrix reads manifests only; it does not download hundreds of multi-GB
+filesystems, verify their carrier signatures, or access physical phones.
+
+The original discovery-only PR revision c712793 passed all 18 compatibility
+jobs in [run 41844217861](https://github.com/ThomasPServo/LightSpeedSwap/actions/runs/41844217861).
+A duplicate run had one cancelled job; rerunning that job on the unchanged
+revision completed successfully. New 0.7.4 code must pass its own workflow before
+publication; the old run is not evidence for the later changes.
+
+## iPhone 18 Pro Max on iOS 27.3 beta 2
+
+On 2026-11-24, automatic lookup for `iPhone19,3 / V64AP / 27.3 / 24C5049f`
+resolved the [Apple IPSW](https://updates.cdn-apple.com/2026FallSeed/e5812d44-e8b5-4cc1-bdc9-de4d7a309002/iPhone19,2,iPhone19,3,iPhone19,7_27.3_24C5049f_Restore.ipsw).
+The production ZIP reader fetched the 3,339,028-byte BuildManifest directly from
+that archive. Its SHA-256 is `9255e203651ff2551725103337be45418b38c99cb0dfedb9c3684d2cdc39c9da`.
+
+| V64AP identity | Filesystem image |
+| --- | --- |
+| Developer Erase Install (IPSW) | `141-93738-042.dmg.aea` |
+| Developer Upgrade Install (IPSW) | `141-93738-042.dmg.aea` |
+| Recovery Customer Install | `141-93066-049.dmg.aea` |
+
+The 0.7.3 release reproduces [issue #3](https://github.com/ThomasPServo/LightSpeedSwap/issues/3).
+The 0.7.4 CLI selects the 9,797,894,144-byte Developer image. On Windows
+Server 2025 x64, the native runner downloaded the image from Apple, decrypted
+it, extracted both carrier bundles, verified their six signature groups and
+exported the pack below. The manifest and all 19 carrier files matched a
+separately archived copy byte for byte. The offline regression imports the
+pack, validates both signed 74.0 bundles and rejects a Recovery-only manifest.
+The run covered firmware preparation without a connected iPhone.
+[Windows extraction and verification](https://github.com/ThomasPServo/LightSpeedSwap/actions/runs/45380428183/job/138397718918).
+
+| Verified artifact | SHA-256 |
+| --- | --- |
+| Developer filesystem image | `2d0a8282bd15d068ad243b0220e8151103efbbe54bb6a903402446dcdfd12a51` |
+| [198,958-byte carrier pack](packs/24C5049f/LightSpeedSwap-iPhone19-3-v64ap-27.3-24C5049f.carrierpack) | `e7fc6869562ade81020050224e1a7f40b79e4f32e4c66c381ff702f74eb6542b` |
+
+## Intel Mac dependency
+
+The Espressif wheel URL used by 0.7.1–0.7.3 returned a rebuilt file during
+[the 0.7.4 compatibility run](https://github.com/ThomasPServo/LightSpeedSwap/actions/runs/41855277065).
+On 2026-11-24 both of Espressif’s download hosts returned the same 3,716,685
+bytes, with SHA-256 `734a541c8ad5642a4d0cb25c9da74559e4c2f73161cb2d1f016e63a91081e1e1`.
+We verified every hashed entry in the wheel’s RECORD and compared all 110
+Python files and type stubs with the hash-pinned PyPI 50.0.2 source archive.
+The x86_64 native extension links to libSystem and libiconv in /usr/lib.
+The 0.7.4 requirements bind pip to these bytes at a specific Git commit.
+The original cp311-abi3 wheel tag retains its macOS 10.12 deployment target.
+[Espressif wheel index](https://dl.espressif.com/pypi/cryptography/).
+
+## Unreleased beta firmware discovery and manifest handling
+
+On 2026-11-04, live IPSW.me lookup had no exact entry for iPhone18,2 / iOS 27.3 /
+24C5037i. The new AppleDB fallback resolved the HTTPS Apple IPSW below, filtering
+the HTTP mirror that AppleDB adds to its published API:
+
+https://updates.cdn-apple.com/2026FallSeed/7b4dad3a-c3aa-4e0f-9e1b-911d7b53867f/iPhone18,2_27.3_24C5037i_Restore.ipsw
+
+The existing bounded range reader retrieved `BuildManifest.plist` directly from
+that Apple archive (817,084 bytes; SHA-256
+`4920ce46a3239ea291ab065d5ad5c41b2e4ff08f5c9391e85aaf578c080d8f89`).
+It declares ProductVersion `27.3`, ProductBuildVersion `24C5037i`, and
+SupportedProductTypes `[iPhone18,2]`. The V54AP identities contain Developer
+Erase/Upgrade IPSW variants and a separate Recovery Customer Install variant.
+The new validator selects the unique OS image `141-93003-026.dmg.aea` from the
+Developer identities; the previous Customer-only validator cannot select it.
+
+All 156 offline tests passed on Linux / Python 3.12. Coverage includes exact
+product/build/version/board matching, beta/RC display labels, HTTP mirror
+exclusion, index outages, ambiguity, invalid metadata, and failure before cache
+creation. A separate test signs every payload group with a generated non-Apple
+P-384 key and confirms those internally consistent signatures are rejected.
+`doctor` verifies all seven included entries, `pip check` passes, and the rebuilt
+CLI reports its version. Cross-platform CI remains the responsibility of the
+PR/release workflow.
+
+This validates discovery and the actual Apple manifest, not the beta carrier
+payloads or physical switching. No full filesystem image was downloaded and no
+phone was accessed. Unknown beta signing keys still fail closed. The production
+Apple trust anchor and signature verifier are unchanged; a key derived from the
+untrusted signatures themselves must not be accepted as an Apple trust anchor.
+Full beta signing support requires an independently verified Apple key and
+actual carrier payload validation. This discovery test did not modify the published v0.7.3 asset.
+
 ## 0.7.3 slow-download and resume regression coverage
 
 All 139 local offline tests passed on the development Linux/Python 3.12 host.

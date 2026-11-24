@@ -2,6 +2,8 @@ name: Native Windows and Linux firmware
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths: ['.github/native-firmware-request.json']
   push:
     branches: [main]
     paths: ['.github/native-firmware-request.json']
@@ -15,10 +17,11 @@ concurrency:
 
 jobs:
   prepare:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-2025, ubuntu-24.04-arm, windows-11-arm]
+        os: ${{ fromJSON(github.event_name == 'pull_request' && '["windows-2025"]' || '["ubuntu-24.04","windows-2025","ubuntu-24.04-arm","windows-11-arm"]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     defaults:
@@ -31,9 +34,9 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
-      - name: Install signature verifier
+      - name: Install signature and HTTPS dependencies
         if: matrix.os != 'windows-11-arm'
-        run: python -m pip install '--only-binary=:all:' cryptography==50.0.2
+        run: python -m pip install '--only-binary=:all:' -c requirements.txt cryptography certifi
       - name: Bootstrap x64 runtime from native Windows ARM Python
         if: matrix.os == 'windows-11-arm'
         run: |
@@ -49,8 +52,8 @@ jobs:
           RUNNER_ENVIRONMENT: ${{ runner.environment }}
         run: python .github/scripts/prepare_runner_space.py
       - name: Download, decrypt, and extract actual Apple firmware natively
-        run: python -c 'import build_carrier_pack as b; b.main()' --request .github/native-firmware-request.json --output-dir "$CARRIER_PREP_TEMP/lightspeed-carrier-pack"
-      - name: Compare the generated original files with the known firmware baseline
+        run: python build_carrier_pack.py --request .github/native-firmware-request.json --output-dir "$CARRIER_PREP_TEMP/lightspeed-carrier-pack"
+      - name: Compare the generated files with the reference pack for this firmware
         run: |
           python - <<'PY'
           import json, os
@@ -63,14 +66,19 @@ jobs:
           state = SimpleNamespace(**report['device'])
           key = s.entry_key(p.identity(state))
           entries, objects = s.read(directory / report['pack']['file'])
-          _, actual = p.validate_entry(state, entries[key], objects)
-          included, included_objects = p.load_bundled(Path.cwd())
-          if key in included:
-              _, expected = p.validate_entry(state, included[key], included_objects)
-              assert actual == expected, 'Native extraction changed the original signed bytes'
-              print('Both original carrier bundles match the independently prepared baseline byte for byte.')
+          manifest, actual = p.validate_entry(state, entries[key], objects)
+          snapshot = Path('packs') / state.build / report['pack']['file']
+          if snapshot.is_file():
+              baseline, baseline_objects = s.read(snapshot)
+              assert key in baseline, 'Reference pack has the wrong firmware identity'
           else:
-              print('Original signatures and exact firmware verified; this identity has no included comparison baseline.')
+              baseline, baseline_objects = p.load_bundled(Path.cwd())
+          if key in baseline:
+              expected_manifest, expected = p.validate_entry(state, baseline[key], baseline_objects)
+              assert manifest == expected_manifest and actual == expected, 'Native firmware bytes differ from the reference pack'
+              print('The manifest and both original signed bundles match the reference pack byte for byte.')
+          else:
+              print('Original signatures and exact firmware verified. No reference pack exists for this identity.')
           print(json.dumps({'host': report['host'], 'pack': report['pack'], 'image': report['filesystem_download']}, indent=2))
           PY
       - name: Upload only the verified carrier pack and receipts

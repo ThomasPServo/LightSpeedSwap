@@ -22,7 +22,7 @@ import zipfile
 from dataclasses import dataclass, field
 
 ROOT = Path(__file__).resolve().parent
-RELEASE = "LightSpeedSwap 0.7.3"
+RELEASE = "LightSpeedSwap 0.7.4"
 TARGETS = {"mvno": "com.apple.TMobile_MVNO_US",
            "wholesale": "com.apple.TMobile_Wholesale_US"}
 IMSI_KEY = "InternationalMobileSubscriberIdentity"
@@ -408,6 +408,8 @@ def parser():
         c.add_argument("--udid", help="Select one USB device; never printed or saved")
         c.add_argument("--slot", help="Exact Slot value from status; required if more than one line is reported")
         if command == "setup-device":
+            c.add_argument('--refresh', action='store_true',
+                           help='Fetch the exact firmware again; never replace newer prepared carrier updates')
             source = c.add_mutually_exclusive_group()
             source.add_argument("--firmware-url", help="Official Apple HTTPS IPSW URL for the phone's exact build")
             source.add_argument("--bundle-pack", type=Path, help="Import a previously exported pack for this exact model/build; no firmware download")
@@ -445,12 +447,11 @@ async def run_phone(args):
             return state
         if args.command == "status":
             report = summarize(state)
-            from carrier_payloads import locate
+            from carrier_payloads import update_status
             try:
-                for target in TARGETS:
-                    load_files(target, state)
-                report["payload_status"] = locate(ROOT, state)[0]
-            except (Stopped, ValueError, KeyError, OSError) as exc:
+                report['carrier_updates'] = update_status(ROOT, state)
+                report["payload_status"] = report['carrier_updates']['source']
+            except (Stopped, ValueError, KeyError, OSError, zipfile.BadZipFile) as exc:
                 report["payload_status"] = "needs_setup_or_repair"
                 report["payload_detail"] = str(exc)
             report["physical_test_coverage"] = "User confirmed both directions on iPhone19,2 / V63AP / 27.2 / 24B119 with reboot. Other models/builds are experimental."
@@ -532,7 +533,7 @@ def main():
         # The phone is already closed. Firmware preparation is host-only and
         # separately bounded by download, decrypt and mount timeouts.
         from carrier_payloads import setup_device
-        setup_device(ROOT, result, args.firmware_url, args.bundle_pack)
+        setup_device(ROOT, result, args.firmware_url, args.bundle_pack, refresh=args.refresh)
         return 0
     if args.command == "export-pack":
         from carrier_payloads import export_pack

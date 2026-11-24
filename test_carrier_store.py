@@ -32,6 +32,21 @@ def fake_store_record(label, data=b'small object'):
 
 
 class CompactStoreContracts(unittest.TestCase):
+    def test_replacement_validator_runs_under_writer_lock_and_can_preserve_cache(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'cache.zip'
+            record, objects = fake_store_record('model', b'current bytes')
+            s.put(path, record, objects)
+            before = path.read_bytes()
+            def reject(previous, previous_objects):
+                self.assertTrue(path.with_suffix('.lock').exists())
+                self.assertEqual(previous_objects[previous['manifest']], b'current bytes')
+                raise ValueError('rejected update')
+            with self.assertRaisesRegex(ValueError, 'rejected update'):
+                s.put(path, *fake_store_record('model', b'older bytes'), validate_existing=reject)
+            self.assertEqual(path.read_bytes(), before)
+            self.assertFalse(path.with_suffix('.lock').exists())
+
     def test_duplicate_payloads_are_stored_only_once(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'cache.zip'

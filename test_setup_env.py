@@ -1,4 +1,5 @@
 """Runtime and dependency selection without downloads or device access."""
+import hashlib
 from pathlib import Path
 import subprocess
 import sys
@@ -88,9 +89,14 @@ class DependencySelection(unittest.TestCase):
                 if (system, machine) == ('darwin', 'x86_64'):
                     from urllib.parse import urlsplit
                     url = urlsplit(selected[0].url)
-                    self.assertEqual((url.scheme, url.netloc), ('https', 'dl.espressif.com'))
-                    self.assertTrue(url.path.endswith('cryptography-50.0.2-cp311-abi3-macosx_10_12_x86_64.whl'))
-                    self.assertRegex(url.fragment, r'^sha256=[0-9a-f]{64}$')
+                    self.assertEqual((url.scheme, url.netloc), ('https', 'raw.githubusercontent.com'))
+                    _, owner, repo, revision, path = url.path.split('/', 4)
+                    self.assertEqual((owner, repo), ('ThomasPServo', 'LightSpeedSwap'))
+                    self.assertRegex(revision, r'^[0-9a-f]{40}$')
+                    self.assertEqual(path, 'dependencies/intel-macos/'
+                                     'cryptography-50.0.2-cp311-abi3-macosx_10_12_x86_64.whl')
+                    wheel = Path(__file__).parent / path
+                    self.assertEqual(url.fragment, 'sha256=' + hashlib.sha256(wheel.read_bytes()).hexdigest())
                 else:
                     self.assertIsNone(selected[0].url)
                     self.assertEqual(str(selected[0].specifier), '==50.0.2')
